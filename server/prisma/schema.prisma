@@ -1,0 +1,169 @@
+// CafePOS — single-store fruit cafe. Lean schema: finished-goods stock only (no recipe
+// inventory yet), one-shot create+pay orders, per-line kitchen status for prepared items.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  CASHIER
+}
+
+enum ProductKind {
+  READYMADE
+  PREPARED
+}
+
+enum OrderSource {
+  POS
+  KIOSK
+  QR
+  SWIGGY
+  ZOMATO
+}
+
+enum OrderStatus {
+  AWAITING_PAYMENT
+  COMPLETED
+  PREPARING
+  CANCELLED
+}
+
+enum KdsStatus {
+  PENDING
+  PREPARING
+  READY
+  COMPLETED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  ONLINE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(CASHIER)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  orders       Order[]
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  emoji    String    @default("🍽️")
+  sort     Int       @default(0)
+  active   Boolean   @default(true)
+  products Product[]
+}
+
+model Product {
+  id         String      @id @default(cuid())
+  name       String
+  categoryId String
+  category   Category    @relation(fields: [categoryId], references: [id])
+  kind       ProductKind @default(READYMADE)
+  price      Float
+  /// Purchase/cost price — used for stock valuation and profit reporting. Optional.
+  cost       Float?
+  /// Optional barcode/SKU for scanner lookup.
+  barcode    String?     @unique
+  /// Finished-goods stock. null = not tracked (e.g. prepared items). Deducted on sale.
+  stock      Int?
+  lowStockAt Int         @default(5)
+  /// Emoji/color used for the POS/kiosk tile so no image hosting is needed (keeps it cheap).
+  emoji      String      @default("🍓")
+  color      String      @default("#e2f5e9")
+  active     Boolean     @default(true)
+  sort       Int         @default(0)
+  createdAt  DateTime    @default(now())
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String?
+  points    Int      @default(0)
+  visits    Int      @default(0)
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  number     Int         @unique @default(autoincrement())
+  source     OrderSource @default(POS)
+  status     OrderStatus @default(COMPLETED)
+  subtotal   Float
+  discount   Float       @default(0)
+  tax        Float       @default(0)
+  total      Float
+  /// Paid at creation? POS/online = true; kiosk pay-at-counter = false until settled.
+  paid       Boolean     @default(true)
+  /// External platform order id (Swiggy/Zomato) for reconciliation & idempotency.
+  externalRef String?
+  /// Razorpay order id while awaiting a UPI/gateway payment (used to poll status).
+  gatewayOrderId String?
+  /// Chosen tender before settlement (CASH/CARD at counter, UPI online).
+  tender     String?
+  /// Snapshot of the customer name entered at the till/kiosk.
+  customerName String?
+  cashierId  String?
+  cashier    User?       @relation(fields: [cashierId], references: [id])
+  customerId String?
+  customer   Customer?   @relation(fields: [customerId], references: [id])
+  createdAt  DateTime    @default(now())
+  items      OrderItem[]
+  payment    Payment?
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([source, createdAt])
+  @@index([externalRef])
+}
+
+model OrderItem {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product     @relation(fields: [productId], references: [id])
+  /// Name/price snapshot so historic bills stay correct if the catalog changes.
+  name      String
+  kind      ProductKind
+  unitPrice Float
+  qty       Int
+  modifiers String[]    @default([])
+  note      String?
+  lineTotal Float
+  /// Kitchen status — only advances for PREPARED items; READYMADE stays COMPLETED.
+  kdsStatus KdsStatus   @default(COMPLETED)
+
+  @@index([orderId])
+  @@index([kdsStatus])
+}
+
+model Payment {
+  id       String        @id @default(cuid())
+  orderId  String        @unique
+  order    Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method   PaymentMethod
+  amount   Float
+  tendered Float?
+  change   Float         @default(0)
+  paidAt   DateTime      @default(now())
+}

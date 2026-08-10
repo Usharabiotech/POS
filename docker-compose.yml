@@ -1,0 +1,25 @@
+# Local-development database only. Production uses the host's managed Postgres.
+# Start it with:  docker compose up -d
+# Then:           npm run db:deploy && npm run db:seed
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cafepos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cafepos
+    # Host port 5434 to avoid clashing with other local Postgres (aqualab uses 5433).
+    ports:
+      - "5434:5432"
+    volumes:
+      - cafepos_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  cafepos_pgdata:

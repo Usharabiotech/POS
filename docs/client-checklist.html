@@ -1,0 +1,313 @@
+<style>
+  :root {
+    --ground: #f4f7f2;
+    --surface: #ffffff;
+    --surface-2: #eef3ea;
+    --ink: #16241b;
+    --muted: #56655b;
+    --faint: #859389;
+    --line: #dde7d8;
+    --line-strong: #cbd8c4;
+    --brand: #15703d;
+    --brand-strong: #0f5a30;
+    --brand-soft: #e2f2e7;
+    --amber: #b7791f;
+    --amber-soft: #fbeecd;
+    --shadow: 0 1px 2px rgba(22,36,27,.05), 0 8px 24px rgba(22,36,27,.06);
+    --track: #d5ded0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0f130e; --surface: #161c14; --surface-2: #1b2318; --ink: #e9f1e5;
+      --muted: #9dac9d; --faint: #71806c; --line: #26301f; --line-strong: #35422c;
+      --brand: #56cc84; --brand-strong: #74d99a; --brand-soft: #15331e;
+      --amber: #e9b458; --amber-soft: #33280f; --track: #333f2c;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.45);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #f4f7f2; --surface: #ffffff; --surface-2: #eef3ea; --ink: #16241b;
+    --muted: #56655b; --faint: #859389; --line: #dde7d8; --line-strong: #cbd8c4;
+    --brand: #15703d; --brand-strong: #0f5a30; --brand-soft: #e2f2e7;
+    --amber: #b7791f; --amber-soft: #fbeecd; --track: #d5ded0;
+    --shadow: 0 1px 2px rgba(22,36,27,.05), 0 8px 24px rgba(22,36,27,.06);
+  }
+  :root[data-theme="dark"] {
+    --ground: #0f130e; --surface: #161c14; --surface-2: #1b2318; --ink: #e9f1e5;
+    --muted: #9dac9d; --faint: #71806c; --line: #26301f; --line-strong: #35422c;
+    --brand: #56cc84; --brand-strong: #74d99a; --brand-soft: #15331e;
+    --amber: #e9b458; --amber-soft: #33280f; --track: #333f2c;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.45);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 22px 90px; }
+
+  header.top { margin-bottom: 26px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--brand);
+  }
+  .eyebrow::before { content: "🍓"; }
+  h1 { font-size: clamp(26px, 4vw, 38px); line-height: 1.08; margin: 12px 0 8px; letter-spacing: -.02em; text-wrap: balance; }
+  .sub { color: var(--muted); max-width: 62ch; margin: 0; font-size: 15.5px; }
+
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 26px; align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  section.grp { margin-bottom: 26px; }
+  .grp-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .grp-head h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 0; font-weight: 700; }
+  .grp-head .rule { flex: 1; height: 1px; background: var(--line); }
+
+  .items { display: flex; flex-direction: column; gap: 8px; }
+  .item {
+    display: flex; align-items: flex-start; gap: 14px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 14px; padding: 13px 15px; box-shadow: var(--shadow);
+    cursor: pointer; transition: border-color .15s;
+  }
+  .item:has(.sw:checked) { border-color: var(--brand); }
+  .item.core { cursor: default; }
+  .item-main { flex: 1; min-width: 0; }
+  .item-name { font-weight: 650; font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .item-q { color: var(--muted); font-size: 13.5px; margin-top: 3px; }
+
+  .tag { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+  .tag-inc { background: var(--brand-soft); color: var(--brand-strong); }
+  .tag-prem { background: var(--amber-soft); color: var(--amber); }
+  .tag-need { background: transparent; color: var(--amber); border: 1px dashed color-mix(in srgb, var(--amber) 55%, transparent); }
+
+  /* Switch */
+  .sw { appearance: none; -webkit-appearance: none; margin: 2px 0 0; flex: none; width: 46px; height: 27px; border-radius: 999px; background: var(--track); position: relative; cursor: pointer; transition: background .18s; }
+  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 21px; height: 21px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .18s; }
+  .sw:checked { background: var(--brand); }
+  .sw:checked::after { transform: translateX(19px); }
+  .sw:disabled { opacity: .6; cursor: default; }
+  .sw:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+  /* Store profile inputs */
+  .profile { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+  .field { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow); }
+  .field label { display: block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); font-weight: 700; margin-bottom: 5px; }
+  .field input { width: 100%; border: 0; background: transparent; color: var(--ink); font-size: 15px; font-family: inherit; outline: none; }
+  .field input::placeholder { color: var(--faint); }
+
+  /* Summary */
+  .summary { position: sticky; top: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: var(--shadow); }
+  .summary h3 { margin: 0 0 2px; font-size: 17px; }
+  .summary .plan { margin: 14px 0; padding: 14px; border-radius: 14px; background: var(--brand-soft); }
+  .summary .plan .lab { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--brand-strong); font-weight: 700; }
+  .summary .plan .name { font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 2px; }
+  .stat-row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 14px; border-bottom: 1px solid var(--line); }
+  .stat-row:last-of-type { border-bottom: 0; }
+  .stat-row b { font-weight: 700; }
+  .need-list { margin: 12px 0 0; padding: 12px; border-radius: 12px; background: var(--amber-soft); }
+  .need-list .lab { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--amber); font-weight: 700; margin-bottom: 6px; }
+  .need-list ul { margin: 0; padding-left: 16px; font-size: 13px; color: var(--ink); }
+  .need-list li { margin: 3px 0; }
+  .need-empty { font-size: 13px; color: var(--muted); }
+  .print-btn { margin-top: 14px; width: 100%; border: 0; border-radius: 12px; background: var(--brand); color: #fff; font-weight: 700; font-size: 14px; padding: 11px; cursor: pointer; font-family: inherit; }
+
+  .foot { margin-top: 34px; font-size: 12px; color: var(--faint); border-top: 1px solid var(--line); padding-top: 14px; }
+
+  @media print {
+    .summary { position: static; box-shadow: none; }
+    .print-btn { display: none; }
+    .item { break-inside: avoid; box-shadow: none; }
+    body { background: #fff; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">CafePOS · Client Discovery</span>
+    <h1>Store setup checklist — what to switch on for this client</h1>
+    <p class="sub">Run through this in the client meeting. Each question maps to a feature you turn on or off.
+      Toggle as you go — the panel tallies what's selected, suggests a plan, and lists what you'll need from the client.</p>
+  </header>
+
+  <div class="layout">
+    <main>
+      <!-- STORE PROFILE -->
+      <section class="grp">
+        <div class="grp-head"><h2>Store profile</h2><span class="rule"></span></div>
+        <div class="profile">
+          <div class="field"><label>Store / brand name</label><input placeholder="e.g. Fresh &amp; Juicy" /></div>
+          <div class="field"><label>GST %</label><input placeholder="5" /></div>
+          <div class="field"><label>Billing devices</label><input placeholder="1 tablet / laptop" /></div>
+          <div class="field"><label>Languages needed</label><input placeholder="English / Telugu" /></div>
+        </div>
+      </section>
+
+      <!-- BILLING -->
+      <section class="grp">
+        <div class="grp-head"><h2>Billing &amp; counter</h2><span class="rule"></span></div>
+        <div class="items">
+          <label class="item core"><div class="item-main"><div class="item-name">Cashier billing <span class="tag tag-inc">Included</span></div><div class="item-q">Fast tap-to-add, discounts, hold/resume, split payment, day-close.</div></div><input class="sw" type="checkbox" checked disabled></label>
+          <label class="item" data-tier="core"><div class="item-main"><div class="item-name">Barcode scanner</div><div class="item-q">Do they scan packaged items (juices, chocolates) at the till?</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="core" data-need="Thermal receipt printer (80mm)"><div class="item-main"><div class="item-name">Printed receipts &amp; token slips</div><div class="item-q">Do they hand a printed bill / token? Needs a thermal printer.</div></div><input class="sw" type="checkbox" checked></label>
+        </div>
+      </section>
+
+      <!-- KITCHEN -->
+      <section class="grp">
+        <div class="grp-head"><h2>Kitchen</h2><span class="rule"></span></div>
+        <div class="items">
+          <label class="item" data-tier="core"><div class="item-main"><div class="item-name">Kitchen Display screen</div><div class="item-q">Do they make items fresh (juices, smoothies, coffee) that need a prep queue?</div></div><input class="sw" type="checkbox" checked></label>
+          <label class="item" data-tier="core"><div class="item-main"><div class="item-name">Token / pickup numbers</div><div class="item-q">Call customers by a token when their order is ready?</div></div><input class="sw" type="checkbox" checked></label>
+        </div>
+      </section>
+
+      <!-- PAYMENTS -->
+      <section class="grp">
+        <div class="grp-head"><h2>Payments</h2><span class="rule"></span></div>
+        <div class="items">
+          <label class="item core"><div class="item-main"><div class="item-name">Cash / UPI / Card at the till <span class="tag tag-inc">Included</span></div><div class="item-q">Which tenders do they accept? Recorded at checkout with change &amp; day-close.</div></div><input class="sw" type="checkbox" checked disabled></label>
+          <label class="item" data-tier="pro" data-need="Razorpay merchant account (KYC)"><div class="item-main"><div class="item-name">Online payment gateway <span class="tag tag-prem">Premium</span></div><div class="item-q">Auto-confirm UPI/card so the order only fires after money is received? Needs a Razorpay account.</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="pro" data-need="Razorpay merchant account (KYC)"><div class="item-main"><div class="item-name">UPI QR + WhatsApp pay link</div><div class="item-q">Customer scans a QR / gets a pay link on WhatsApp and pays on their phone.</div></div><input class="sw" type="checkbox"></label>
+        </div>
+      </section>
+
+      <!-- KIOSK -->
+      <section class="grp">
+        <div class="grp-head"><h2>Self-service kiosk</h2><span class="rule"></span></div>
+        <div class="items">
+          <label class="item" data-tier="kiosk" data-need="Kiosk tablet + floor stand"><div class="item-main"><div class="item-name">Self-order kiosk <span class="tag tag-prem">Premium</span></div><div class="item-q">Do customers order themselves on a locked-down touchscreen?</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="kiosk"><div class="item-main"><div class="item-name">Pay at the kiosk</div><div class="item-q">Pay on the kiosk (UPI QR), or just place the order and pay at the counter?</div></div><input class="sw" type="checkbox"></label>
+        </div>
+      </section>
+
+      <!-- ONLINE / DELIVERY -->
+      <section class="grp">
+        <div class="grp-head"><h2>Online &amp; delivery</h2><span class="rule"></span></div>
+        <div class="items">
+          <label class="item" data-tier="kiosk" data-need="Swiggy POS-partner approval + API keys"><div class="item-main"><div class="item-name">Swiggy orders → kitchen <span class="tag tag-prem">Premium</span></div><div class="item-q">Pull Swiggy orders in with a sound alert? Needs Swiggy partner approval.</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="kiosk" data-need="Zomato partner approval + API keys"><div class="item-main"><div class="item-name">Zomato orders → kitchen <span class="tag tag-prem">Premium</span></div><div class="item-q">Same for Zomato? Needs Zomato partner approval.</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="pro" data-need="QR codes printed for tables"><div class="item-main"><div class="item-name">QR ordering at tables</div><div class="item-q">Scan a QR at the table to order from the phone?</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="kiosk" data-need="WhatsApp Business API number"><div class="item-main"><div class="item-name">WhatsApp ordering</div><div class="item-q">Take orders over WhatsApp? Needs a WhatsApp Business number.</div></div><input class="sw" type="checkbox"></label>
+        </div>
+      </section>
+
+      <!-- CUSTOMERS -->
+      <section class="grp">
+        <div class="grp-head"><h2>Customers &amp; loyalty</h2><span class="rule"></span></div>
+        <div class="items">
+          <label class="item" data-tier="core"><div class="item-main"><div class="item-name">Capture name &amp; phone</div><div class="item-q">Take the customer's name and number before billing?</div></div><input class="sw" type="checkbox" checked></label>
+          <label class="item" data-tier="pro"><div class="item-main"><div class="item-name">Loyalty points <span class="tag tag-prem">Premium</span></div><div class="item-q">Earn points on every bill to bring customers back?</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="kiosk"><div class="item-main"><div class="item-name">Wallet / memberships</div><div class="item-q">Prepaid wallet or membership tiers?</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="pro"><div class="item-main"><div class="item-name">Birthday &amp; referral offers</div><div class="item-q">Auto offers on birthdays or for referrals?</div></div><input class="sw" type="checkbox"></label>
+        </div>
+      </section>
+
+      <!-- INVENTORY -->
+      <section class="grp">
+        <div class="grp-head"><h2>Inventory</h2><span class="rule"></span></div>
+        <div class="items">
+          <label class="item" data-tier="core"><div class="item-main"><div class="item-name">Stock tracking</div><div class="item-q">Track units of packaged goods, auto-deducted on each sale, with low-stock alerts?</div></div><input class="sw" type="checkbox" checked></label>
+          <label class="item" data-tier="pro"><div class="item-main"><div class="item-name">Cost price &amp; profit reports <span class="tag tag-prem">Premium</span></div><div class="item-q">Track cost to value stock and see profit per item?</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="kiosk"><div class="item-main"><div class="item-name">Recipe / ingredient inventory <span class="tag tag-prem">Premium</span></div><div class="item-q">Deduct raw ingredients (fruit, milk) as recipes are sold?</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="kiosk"><div class="item-main"><div class="item-name">Suppliers &amp; purchase orders</div><div class="item-q">Manage suppliers and raise purchase orders?</div></div><input class="sw" type="checkbox"></label>
+          <label class="item" data-tier="kiosk"><div class="item-main"><div class="item-name">Expiry &amp; wastage</div><div class="item-q">Track expiry dates and record wastage?</div></div><input class="sw" type="checkbox"></label>
+        </div>
+      </section>
+
+      <!-- REPORTS & STAFF -->
+      <section class="grp">
+        <div class="grp-head"><h2>Reports &amp; staff</h2><span class="rule"></span></div>
+        <div class="items">
+          <label class="item core"><div class="item-main"><div class="item-name">Daily sales, tax &amp; top sellers <span class="tag tag-inc">Included</span></div><div class="item-q">Day summary, payment mix, best items, busiest hours.</div></div><input class="sw" type="checkbox" checked disabled></label>
+          <label class="item" data-tier="pro"><div class="item-main"><div class="item-name">Staff logins &amp; roles <span class="tag tag-prem">Premium</span></div><div class="item-q">Separate admin and cashier logins? How many staff?</div></div><input class="sw" type="checkbox" checked></label>
+          <label class="item" data-tier="pro"><div class="item-main"><div class="item-name">Employee performance</div><div class="item-q">Sales per cashier / shift reporting?</div></div><input class="sw" type="checkbox"></label>
+        </div>
+      </section>
+
+      <!-- SCALE & HOSTING -->
+      <section class="grp">
+        <div class="grp-head"><h2>Scale &amp; reliability</h2><span class="rule"></span></div>
+        <div class="items">
+          <label class="item" data-tier="kiosk"><div class="item-main"><div class="item-name">Multiple branches <span class="tag tag-prem">Premium</span></div><div class="item-q">One outlet now, or several with a shared catalog &amp; central reports?</div></div><input class="sw" type="checkbox"></label>
+          <label class="item core"><div class="item-main"><div class="item-name">Works offline <span class="tag tag-inc">Included</span></div><div class="item-q">Keeps billing through Wi-Fi drops, syncs when back. Recommended on.</div></div><input class="sw" type="checkbox" checked disabled></label>
+          <label class="item" data-tier="core" data-need="Domain name (optional) + monthly hosting"><div class="item-main"><div class="item-name">We host &amp; maintain</div><div class="item-q">You run the server, updates &amp; backups on a monthly plan?</div></div><input class="sw" type="checkbox" checked></label>
+        </div>
+      </section>
+    </main>
+
+    <!-- SUMMARY -->
+    <aside>
+      <div class="summary">
+        <h3>Selection</h3>
+        <div class="plan">
+          <div class="lab">Suggested plan</div>
+          <div class="name" id="plan">Essential</div>
+        </div>
+        <div class="stat-row"><span>Features enabled</span><b class="num" id="count">0</b></div>
+        <div class="stat-row"><span>Premium add-ons</span><b class="num" id="prem">0</b></div>
+        <div class="need-list" id="needBox">
+          <div class="lab">Client needs to provide</div>
+          <ul id="needs"></ul>
+          <div class="need-empty" id="needEmpty">Nothing extra — runs on the core setup.</div>
+        </div>
+        <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+      </div>
+    </aside>
+  </div>
+
+  <p class="foot">CafePOS discovery checklist · "Included" features ship with every store. "Premium" items are paid
+    add-ons. Items marked with a dashed tag in the panel need something from the client (a merchant account, partner
+    approval, or hardware) before they can go live.</p>
+</div>
+
+<script>
+  (function () {
+    var items = Array.prototype.slice.call(document.querySelectorAll(".item"));
+    var elCount = document.getElementById("count");
+    var elPrem = document.getElementById("prem");
+    var elPlan = document.getElementById("plan");
+    var elNeeds = document.getElementById("needs");
+    var elNeedEmpty = document.getElementById("needEmpty");
+
+    function isPremium(it) {
+      return !!it.querySelector(".tag-prem");
+    }
+    function recompute() {
+      var count = 0, prem = 0, tiers = {}, needs = {};
+      items.forEach(function (it) {
+        var sw = it.querySelector(".sw");
+        if (!sw.checked) return;
+        count++;
+        if (isPremium(it)) prem++;
+        var t = it.getAttribute("data-tier");
+        if (t) tiers[t] = true;
+        var need = it.getAttribute("data-need");
+        if (need) needs[need] = true;
+      });
+      elCount.textContent = count;
+      elPrem.textContent = prem;
+
+      var plan = "Essential";
+      if (tiers.kiosk) plan = "Kiosk & Beyond";
+      else if (tiers.pro) plan = "Professional";
+      elPlan.textContent = plan;
+
+      var list = Object.keys(needs);
+      elNeeds.innerHTML = "";
+      list.forEach(function (n) {
+        var li = document.createElement("li");
+        li.textContent = n;
+        elNeeds.appendChild(li);
+      });
+      elNeedEmpty.style.display = list.length ? "none" : "block";
+    }
+    items.forEach(function (it) {
+      var sw = it.querySelector(".sw");
+      if (sw && !sw.disabled) sw.addEventListener("change", recompute);
+    });
+    recompute();
+  })();
+</script>

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+client/dev-dist/
+
+# Local dev Postgres cluster (portable) — never commit this
+.pgdata/
