@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cafepos/shared": "*",
     "@tanstack/react-query": "^5.59.16",
     "@types/qrcode": "^1.5.6",
     "axios": "^1.7.7",
