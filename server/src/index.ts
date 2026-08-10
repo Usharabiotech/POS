@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import { execSync } from "node:child_process";
 import { env } from "./env.js";
 import { authRoutes } from "./routes/auth.js";
 import { catalogRoutes } from "./routes/catalog.js";
@@ -78,6 +79,23 @@ const shutdown = async () => {
 };
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+
+// Self-healing schema: apply migrations on boot (some hosts run a start command that
+// skips the Dockerfile's migrate step, leaving the DB empty). Seed only a brand-new DB.
+if (env.nodeEnv === "production") {
+  try {
+    app.log.info("DB: applying migrations…");
+    execSync("npm run db:deploy", { stdio: "inherit" });
+    const userCount = await prisma.user.count();
+    if (userCount === 0) {
+      app.log.info("DB: empty — seeding catalog + admin…");
+      execSync("npm run db:seed", { stdio: "inherit" });
+    }
+    app.log.info("DB: ready.");
+  } catch (err) {
+    app.log.error({ err }, "DB bootstrap failed — check DATABASE_URL / migrations");
+  }
+}
 
 try {
   await app.listen({ port: env.port, host: env.host });
