@@ -1,0 +1,36 @@
+name: CI
+
+# Guard every push/PR: if types or the build break, it fails here BEFORE Railway
+# or Vercel deploy the bad commit.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      # Prisma reads this from the schema's datasource block. generate/typecheck never
+      # connect, so a placeholder is enough (no database needed in CI).
+      DATABASE_URL: "postgresql://user:pass@localhost:5432/ci?schema=public"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate Prisma client
+        run: npm run db:generate -w server
+
+      - name: Typecheck (server + client)
+        run: npm run typecheck
+
+      - name: Build client
+        run: npm run build -w client
