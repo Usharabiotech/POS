@@ -157,6 +157,25 @@ model OrderItem {
   @@index([kdsStatus])
 }
 
+/// Persisted daily aggregate. Written at day-close so the money totals survive after
+/// the detailed orders are purged from the cloud — keeps the DB small and cheap.
+model DailySummary {
+  id         String   @id @default(cuid())
+  /// Local calendar day, YYYY-MM-DD.
+  date       String   @unique
+  orderCount Int
+  sales      Float
+  tax        Float
+  discount   Float
+  /// { CASH, UPI, CARD, ONLINE } rupee totals.
+  byMethod   Json
+  /// Top items [{ name, qty, revenue }].
+  topItems   Json
+  /// 24-slot hourly sales.
+  hourly     Json
+  closedAt   DateTime @default(now())
+}
+
 model Payment {
   id       String        @id @default(cuid())
   orderId  String        @unique

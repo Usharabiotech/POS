@@ -13,6 +13,7 @@ import { kioskRoutes } from "./routes/kiosk.js";
 import { channelRoutes } from "./routes/channels.js";
 import { paymentRoutes } from "./routes/payments.js";
 import { inventoryRoutes } from "./routes/inventory.js";
+import { eodRoutes } from "./routes/eod.js";
 import { prisma } from "./db.js";
 
 const app = Fastify({
@@ -61,6 +62,7 @@ await app.register(kioskRoutes, { prefix: "/api" });
 await app.register(channelRoutes, { prefix: "/api" });
 await app.register(paymentRoutes, { prefix: "/api" });
 await app.register(inventoryRoutes, { prefix: "/api" });
+await app.register(eodRoutes, { prefix: "/api" });
 
 // Single-container production: serve the built SPA from the same process (cheap hosting).
 if (env.publicDir) {

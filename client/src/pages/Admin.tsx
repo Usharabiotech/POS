@@ -334,7 +334,9 @@ interface InvReport {
 }
 
 function Inventory() {
+  const qc = useQueryClient();
   const [days, setDays] = useState(1);
+  const [adjust, setAdjust] = useState<InvItem | null>(null);
   const { data } = useQuery({
     queryKey: ["inventory", days],
     queryFn: async () => (await api.get("/inventory/report", { params: { days } })).data as InvReport,
@@ -385,6 +387,7 @@ function Inventory() {
               <th className="px-3 py-2 text-right">Sold ({data?.windowDays ?? 1}d)</th>
               <th className="px-3 py-2 text-right">Stock value</th>
               <th className="px-3 py-2 text-right">Sales</th>
+              <th className="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -404,18 +407,124 @@ function Inventory() {
                 <td className="px-3 py-2 text-right tabular-nums">{i.soldQty}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{money(i.stockValueCost || i.stockValueRetail)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{money(i.soldValue)}</td>
+                <td className="px-3 py-2 text-right">
+                  <button onClick={() => setAdjust(i)} className="rounded-lg bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">
+                    + Stock
+                  </button>
+                </td>
               </tr>
             ))}
             {tracked.length === 0 && (
-              <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-400">No stock-tracked items.</td></tr>
+              <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-400">No stock-tracked items.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {adjust && (
+        <StockAdjustModal
+          item={adjust}
+          onClose={() => setAdjust(null)}
+          onSaved={() => {
+            setAdjust(null);
+            qc.invalidateQueries({ queryKey: ["inventory"] });
+            qc.invalidateQueries({ queryKey: ["admin-products"] });
+          }}
+        />
+      )}
       <p className="mt-2 text-xs text-slate-400">
         Stock is deducted automatically when an order is paid, so "sold" and "in stock" always reconcile with POS sales.
       </p>
     </>
+  );
+}
+
+function StockAdjustModal({
+  item,
+  onClose,
+  onSaved,
+}: {
+  item: InvItem;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [receive, setReceive] = useState<number>(0);
+  const [setTo, setSetTo] = useState<string>("");
+  const [cost, setCost] = useState<number>(item.cost ?? 0);
+  const [busy, setBusy] = useState(false);
+
+  const projected = setTo !== "" ? Number(setTo) : (item.stock ?? 0) + (receive || 0);
+
+  async function save() {
+    setBusy(true);
+    try {
+      // Set cost if changed.
+      if (Number(cost) !== (item.cost ?? 0)) {
+        await api.patch(`/products/${item.id}`, { cost: cost ? Number(cost) : null });
+      }
+      // Set absolute stock, or add received quantity.
+      if (setTo !== "") {
+        await api.patch(`/products/${item.id}`, { stock: Math.max(0, Number(setTo)) });
+      } else if (receive) {
+        await api.post(`/products/${item.id}/stock`, { delta: Number(receive) });
+      }
+      toast.success(`${item.name} updated`);
+      onSaved();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Could not update stock");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="card w-full max-w-sm p-6">
+        <div className="mb-1 flex items-center justify-between">
+          <h3 className="text-lg font-bold">Adjust stock</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+        </div>
+        <p className="mb-4 text-sm text-slate-500">{item.name} · in stock <b>{item.stock}</b></p>
+
+        <label className="mb-1 block text-xs font-semibold text-slate-500">Receive / add quantity</label>
+        <div className="mb-3 flex items-center gap-2">
+          <button onClick={() => setReceive((r) => Math.max(0, r - 1))} className="rounded-lg bg-slate-100 p-2"><Minus className="h-4 w-4" /></button>
+          <input
+            type="number"
+            value={receive || ""}
+            onChange={(e) => { setReceive(Number(e.target.value)); setSetTo(""); }}
+            placeholder="0"
+            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-center"
+          />
+          <button onClick={() => setReceive((r) => r + 1)} className="rounded-lg bg-slate-100 p-2"><Plus className="h-4 w-4" /></button>
+        </div>
+
+        <label className="mb-1 block text-xs font-semibold text-slate-500">…or set exact count (stock take)</label>
+        <input
+          type="number"
+          value={setTo}
+          onChange={(e) => { setSetTo(e.target.value); setReceive(0); }}
+          placeholder={String(item.stock ?? 0)}
+          className="mb-3 w-full rounded-xl border border-slate-300 px-3 py-2"
+        />
+
+        <label className="mb-1 block text-xs font-semibold text-slate-500">Cost price ₹ (for value & profit)</label>
+        <input
+          type="number"
+          value={cost || ""}
+          onChange={(e) => setCost(Number(e.target.value))}
+          placeholder="0"
+          className="mb-4 w-full rounded-xl border border-slate-300 px-3 py-2"
+        />
+
+        <div className="mb-4 rounded-xl bg-slate-50 p-3 text-center text-sm">
+          New stock level: <b className="text-brand-700">{projected}</b>
+        </div>
+        <button className="btn-primary w-full py-2.5" onClick={save} disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
   );
 }
 

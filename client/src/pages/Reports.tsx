@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Receipt, TrendingUp, Percent, ShoppingBag } from "lucide-react";
-import { api } from "../api";
+import { toast } from "sonner";
+import { ArrowLeft, Receipt, TrendingUp, Percent, ShoppingBag, DownloadCloud } from "lucide-react";
+import { api, getUser } from "../api";
 
 const money = (n: number) => "₹" + n.toFixed(2);
 
@@ -25,6 +27,26 @@ export default function Reports() {
   });
 
   const maxHour = Math.max(1, ...(data?.hourly ?? [1]));
+  const isAdmin = getUser()?.role === "ADMIN";
+  const [closing, setClosing] = useState(false);
+
+  async function closeDay() {
+    if (!confirm("Close the day? This downloads today's EOD report + all invoices to this device, then trims old detail from the cloud.")) return;
+    setClosing(true);
+    try {
+      // Lazy-load the PDF/ZIP libs only when actually closing the day.
+      const { downloadEOD } = await import("../lib/eod");
+      const r = await downloadEOD();
+      toast.success(
+        `Day closed — downloaded ${r.orderCount} invoice${r.orderCount === 1 ? "" : "s"} + report.` +
+          (r.purgedOrders > 0 ? ` Trimmed ${r.purgedOrders} old orders from cloud.` : "")
+      );
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Could not close the day");
+    } finally {
+      setClosing(false);
+    }
+  }
 
   return (
     <div className="min-h-full">
@@ -33,6 +55,12 @@ export default function Reports() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <h1 className="text-xl font-bold">Today · {data?.date ?? ""}</h1>
+        {isAdmin && (
+          <button onClick={closeDay} disabled={closing} className="btn-primary ml-auto">
+            <DownloadCloud className="h-5 w-5" />
+            {closing ? "Preparing…" : "Close day & download"}
+          </button>
+        )}
       </header>
 
       <div className="mx-auto max-w-5xl space-y-4 p-4">

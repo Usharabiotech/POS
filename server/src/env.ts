@@ -21,6 +21,9 @@ export const env = {
   currency: process.env.CURRENCY ?? "INR",
   // PIN a manager/cashier enters to unlock the kiosk menu (exit / windowed).
   kioskPin: process.env.KIOSK_PIN ?? "1010",
+  // Keep this many days of DETAILED orders in the cloud; older ones are purged after
+  // their daily summary is saved (the full copy lives in the local EOD archive).
+  retentionDays: Number(process.env.RETENTION_DAYS ?? 45),
   // Shared secret Swiggy/Zomato send in the x-channel-secret header on the webhook.
   channelWebhookSecret: process.env.CHANNEL_WEBHOOK_SECRET ?? "",
   // Razorpay payment gateway (UPI / cards / QR). Blank keys → gateway runs in mock

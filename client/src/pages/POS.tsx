@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -560,6 +561,9 @@ function PayModal(props: {
   const [tendered, setTendered] = useState<number>(0);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<ReceiptOrder | null>(null);
+  // UPI-on-screen: show a QR, wait for the payment handshake, then complete.
+  const [upi, setUpi] = useState<{ orderId: string; url: string; mock: boolean; amount: number } | null>(null);
+  const [qrUrl, setQrUrl] = useState("");
 
   const change = method === "CASH" ? Math.max(0, tendered - total) : 0;
   const quickCash = [total, Math.ceil(total / 50) * 50, Math.ceil(total / 100) * 100, Math.ceil(total / 500) * 500].filter(
@@ -639,6 +643,61 @@ function PayModal(props: {
     }
   }
 
+  // Show the UPI QR on the POS: create an order held for payment, then start a UPI
+  // payment link and render its QR. The handshake (poll below) completes it.
+  async function startUpiQr() {
+    setBusy(true);
+    try {
+      const draft = {
+        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty })),
+        discount,
+        customerPhone: phone || undefined,
+        customerName: custName || undefined,
+      };
+      const order = (await api.post("/orders/await", draft)).data.order;
+      const start = (await api.post("/payments/upi/start", { orderId: order.id })).data;
+      setUpi({ orderId: order.id, url: start.url, mock: !!start.mock, amount: start.amount });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Could not start UPI");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function mockPayUpi() {
+    if (!upi) return;
+    try {
+      await api.post(`/payments/upi/mock-pay/${upi.orderId}`);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Failed");
+    }
+  }
+
+  // Render the QR once the payment link is ready.
+  useEffect(() => {
+    if (upi?.url) QRCode.toDataURL(upi.url, { width: 240, margin: 1 }).then(setQrUrl).catch(() => {});
+  }, [upi?.url]);
+
+  // Poll for the payment handshake; on success load the order and show the receipt.
+  useEffect(() => {
+    if (!upi) return;
+    const id = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/payments/upi/status/${upi.orderId}`);
+        if (data.paid) {
+          clearInterval(id);
+          const order = (await api.get(`/orders/${upi.orderId}`)).data.order;
+          setUpi(null);
+          setDone(order as ReceiptOrder);
+          toast.success(`Order #${order.number} paid by UPI`);
+        }
+      } catch {
+        /* keep polling */
+      }
+    }, 2500);
+    return () => clearInterval(id);
+  }, [upi]);
+
   // Build a provisional receipt order from the current cart for offline sales.
   function buildLocalOrder(ref: string): ReceiptOrder {
     return {
@@ -697,6 +756,33 @@ function PayModal(props: {
               hasPrepared={cart.some((l) => l.product.kind === "PREPARED")}
             />
           </div>
+        ) : upi ? (
+          <div className="text-center">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xl font-bold">Scan &amp; Pay</h3>
+              <button onClick={() => setUpi(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <p className="text-3xl font-extrabold text-brand-700">{money(upi.amount)}</p>
+            <div className="my-3 flex justify-center">
+              {qrUrl ? (
+                <img src={qrUrl} alt="UPI QR" className="h-56 w-56 rounded-xl ring-1 ring-slate-200" />
+              ) : (
+                <div className="flex h-56 w-56 items-center justify-center text-slate-400">Generating QR…</div>
+              )}
+            </div>
+            <div className="flex items-center justify-center gap-2 text-brand-700">
+              <span className="h-2.5 w-2.5 animate-ping rounded-full bg-brand-500" />
+              <span className="font-semibold">Waiting for payment…</span>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">Ask the customer to scan with any UPI app</p>
+            {upi.mock && (
+              <button onClick={mockPayUpi} className="btn-primary mt-4 w-full py-2.5">
+                ✓ Simulate payment received (demo)
+              </button>
+            )}
+          </div>
         ) : (
           <>
             <div className="mb-4 flex items-center justify-between">
@@ -749,10 +835,16 @@ function PayModal(props: {
                 </div>
               </div>
             )}
-            <button className="btn-primary w-full py-3 text-lg" onClick={pay} disabled={busy}>
-              {busy ? "Processing…" : `Confirm ${method}`}
-            </button>
-            {canPayOnline && (
+            {method === "UPI" && canPayOnline ? (
+              <button className="btn-primary w-full py-3 text-lg" onClick={startUpiQr} disabled={busy}>
+                {busy ? "Starting…" : "📲 Show UPI QR & wait for payment"}
+              </button>
+            ) : (
+              <button className="btn-primary w-full py-3 text-lg" onClick={pay} disabled={busy}>
+                {busy ? "Processing…" : `Confirm ${method}`}
+              </button>
+            )}
+            {canPayOnline && method !== "UPI" && (
               <>
                 <div className="my-3 flex items-center gap-3 text-xs text-slate-400">
                   <span className="h-px flex-1 bg-slate-200" /> or <span className="h-px flex-1 bg-slate-200" />
@@ -764,12 +856,12 @@ function PayModal(props: {
                 >
                   📲 Pay online — UPI / Card / QR
                 </button>
-                {payCfgMock && (
-                  <p className="mt-1 text-center text-[11px] text-amber-600">
-                    Demo mode — add Razorpay keys for real payments
-                  </p>
-                )}
               </>
+            )}
+            {canPayOnline && payCfgMock && (
+              <p className="mt-2 text-center text-[11px] text-amber-600">
+                Demo mode — add Razorpay keys for real payments
+              </p>
             )}
           </>
         )}
