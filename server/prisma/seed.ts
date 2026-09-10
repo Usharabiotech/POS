@@ -198,6 +198,59 @@ async function main() {
     }
   }
 
+  // Example reusable modifier groups (only on a fresh DB) so the feature is usable at once.
+  if ((await prisma.modifierGroup.count()) === 0) {
+    const size = await prisma.modifierGroup.create({
+      data: {
+        name: "Size", selectType: "SINGLE", required: true, sort: 0,
+        options: { create: [
+          { name: "Regular", priceDelta: 0, sort: 0 },
+          { name: "Large", priceDelta: 30, sort: 1 },
+        ] },
+      },
+    });
+    const addons = await prisma.modifierGroup.create({
+      data: {
+        name: "Add-ons", selectType: "MULTI", required: false, sort: 1,
+        options: { create: [
+          { name: "Extra scoop", priceDelta: 25, sort: 0 },
+          { name: "Whipped cream", priceDelta: 20, sort: 1 },
+          { name: "Dry fruits", priceDelta: 30, sort: 2 },
+        ] },
+      },
+    });
+    const sugar = await prisma.modifierGroup.create({
+      data: {
+        name: "Sugar", selectType: "SINGLE", required: false, sort: 2,
+        options: { create: [
+          { name: "Normal", priceDelta: 0, sort: 0 },
+          { name: "Less sugar", priceDelta: 0, sort: 1 },
+          { name: "No sugar", priceDelta: 0, sort: 2 },
+        ] },
+      },
+    });
+    // Attach to shakes, smoothies and fresh juices.
+    const drinkCats = await prisma.category.findMany({
+      where: { name: { in: ["Milkshakes", "Smoothies", "Fresh Juices"] } },
+      select: { id: true },
+    });
+    const drinks = await prisma.product.findMany({
+      where: { categoryId: { in: drinkCats.map((c) => c.id) } },
+      select: { id: true },
+    });
+    for (const d of drinks) {
+      await prisma.productModifier.createMany({
+        data: [
+          { productId: d.id, groupId: size.id, sort: 0 },
+          { productId: d.id, groupId: addons.id, sort: 1 },
+          { productId: d.id, groupId: sugar.id, sort: 2 },
+        ],
+        skipDuplicates: true,
+      });
+    }
+    console.log(`  Modifier groups seeded and attached to ${drinks.length} drinks.`);
+  }
+
   const productCount = await prisma.product.count();
   console.log(
     `Seed complete: ${catalog.length} categories, ${productCount} products.`

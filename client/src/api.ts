@@ -48,6 +48,20 @@ api.interceptors.response.use(
 );
 
 // ── Domain types (mirror the server) ────────────────────────────────────────
+export interface ModOption {
+  id: string;
+  name: string;
+  priceDelta: number;
+}
+export interface ModGroup {
+  id: string;
+  name: string;
+  selectType: "SINGLE" | "MULTI";
+  required: boolean;
+  minSelect: number;
+  maxSelect: number | null;
+  options: ModOption[];
+}
 export interface Product {
   id: string;
   name: string;
@@ -58,6 +72,7 @@ export interface Product {
   emoji: string;
   color: string;
   categoryId: string;
+  modifierGroups?: ModGroup[];
 }
 export interface Category {
   id: string;

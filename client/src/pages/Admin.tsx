@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Minus, Pencil, X } from "lucide-react";
+import { ArrowLeft, Plus, Minus, Pencil, X, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { api, getUser } from "../api";
 
@@ -37,7 +37,7 @@ interface Staff {
 
 export default function Admin() {
   const user = getUser();
-  const [tab, setTab] = useState<"products" | "inventory" | "staff">("products");
+  const [tab, setTab] = useState<"products" | "inventory" | "modifiers" | "staff">("products");
 
   if (user?.role !== "ADMIN") {
     return (
@@ -54,7 +54,7 @@ export default function Admin() {
         <Link to="/" className="btn-ghost"><ArrowLeft className="h-5 w-5" /></Link>
         <h1 className="text-xl font-bold">Manage store</h1>
         <div className="ml-4 flex gap-2">
-          {(["products", "inventory", "staff"] as const).map((t) => (
+          {(["products", "inventory", "modifiers", "staff"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -69,7 +69,7 @@ export default function Admin() {
         </div>
       </header>
       <div className="mx-auto max-w-5xl p-4">
-        {tab === "products" ? <Products /> : tab === "inventory" ? <Inventory /> : <StaffTab />}
+        {tab === "products" ? <Products /> : tab === "inventory" ? <Inventory /> : tab === "modifiers" ? <Modifiers /> : <StaffTab />}
       </div>
     </div>
   );
@@ -190,6 +190,18 @@ function ProductModal({
   const [tracksStock, setTracksStock] = useState(product ? product.stock !== null : true);
   const [stock, setStock] = useState(product?.stock ?? 0);
   const [busy, setBusy] = useState(false);
+  const [groupIds, setGroupIds] = useState<string[]>([]);
+
+  // All available option groups + this product's current attachment.
+  const { data: grpData } = useQuery({
+    queryKey: ["modifier-groups"],
+    queryFn: async () => (await api.get("/admin/modifier-groups")).data as { groups: ModGrp[] },
+  });
+  const allGroups = grpData?.groups ?? [];
+  useEffect(() => {
+    if (!product) return;
+    api.get(`/admin/products/${product.id}/modifier-groups`).then((r) => setGroupIds(r.data.groupIds)).catch(() => {});
+  }, [product]);
 
   async function save() {
     if (!name || !categoryId) {
@@ -207,8 +219,9 @@ function ProductModal({
       stock: tracksStock ? Number(stock) : null,
     };
     try {
+      const id = product ? product.id : (await api.post("/products", body)).data.product.id;
       if (product) await api.patch(`/products/${product.id}`, body);
-      else await api.post("/products", body);
+      await api.put(`/admin/products/${id}/modifier-groups`, { groupIds });
       toast.success(product ? "Product updated" : "Product added");
       onSaved();
     } catch (e: any) {
@@ -293,10 +306,130 @@ function ProductModal({
               className="w-full rounded-xl border border-slate-300 px-3 py-2"
             />
           )}
+          {allGroups.length > 0 && (
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Option groups (size, add-ons…)</label>
+              <div className="flex flex-wrap gap-2">
+                {allGroups.map((g) => {
+                  const on = groupIds.includes(g.id);
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setGroupIds((cur) => (on ? cur.filter((x) => x !== g.id) : [...cur, g.id]))}
+                      className={clsx(
+                        "rounded-full px-3 py-1.5 text-sm font-semibold ring-1",
+                        on ? "bg-brand-600 text-white ring-brand-600" : "bg-white text-slate-600 ring-slate-200"
+                      )}
+                    >
+                      {on ? "✓ " : ""}{g.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <button className="btn-primary w-full py-2.5" onClick={save} disabled={busy}>
             {busy ? "Saving…" : "Save"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modifiers ─────────────────────────────────────────────────────────────
+interface ModOpt { id: string; name: string; priceDelta: number }
+interface ModGrp {
+  id: string; name: string; selectType: "SINGLE" | "MULTI"; required: boolean; maxSelect: number | null; options: ModOpt[];
+}
+
+function Modifiers() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["modifier-groups"],
+    queryFn: async () => (await api.get("/admin/modifier-groups")).data as { groups: ModGrp[] },
+  });
+  const groups = data?.groups ?? [];
+  const [name, setName] = useState("");
+  const [type, setType] = useState<"SINGLE" | "MULTI">("SINGLE");
+  const [required, setRequired] = useState(false);
+  const refresh = () => qc.invalidateQueries({ queryKey: ["modifier-groups"] });
+
+  async function addGroup() {
+    if (!name.trim()) return;
+    try {
+      await api.post("/admin/modifier-groups", { name: name.trim(), selectType: type, required });
+      setName(""); setRequired(false); refresh();
+    } catch { toast.error("Could not create group"); }
+  }
+
+  return (
+    <>
+      <p className="mb-3 text-sm text-slate-500">
+        Reusable option groups (Size, Add-ons, Toppings…). Create them here, then attach to products in the Products tab.
+      </p>
+      <div className="card mb-4 grid gap-2 p-4 sm:grid-cols-[1fr_auto_auto_auto]">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New group name (e.g. Size)" className="rounded-xl border border-slate-300 px-3 py-2" />
+        <select value={type} onChange={(e) => setType(e.target.value as any)} className="rounded-xl border border-slate-300 px-2 py-2">
+          <option value="SINGLE">Pick one</option>
+          <option value="MULTI">Pick many</option>
+        </select>
+        <label className="flex items-center gap-2 px-2 text-sm"><input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required</label>
+        <button className="btn-primary" onClick={addGroup}><Plus className="h-4 w-4" /> Add group</button>
+      </div>
+
+      <div className="space-y-3">
+        {groups.map((g) => <GroupCard key={g.id} group={g} onChange={refresh} />)}
+        {groups.length === 0 && <p className="py-8 text-center text-slate-400">No option groups yet.</p>}
+      </div>
+    </>
+  );
+}
+
+function GroupCard({ group, onChange }: { group: ModGrp; onChange: () => void }) {
+  const [optName, setOptName] = useState("");
+  const [optPrice, setOptPrice] = useState<number>(0);
+
+  async function addOpt() {
+    if (!optName.trim()) return;
+    try {
+      await api.post(`/admin/modifier-groups/${group.id}/options`, { name: optName.trim(), priceDelta: Number(optPrice) || 0 });
+      setOptName(""); setOptPrice(0); onChange();
+    } catch { toast.error("Could not add option"); }
+  }
+  async function delOpt(id: string) { await api.delete(`/admin/modifier-options/${id}`); onChange(); }
+  async function delGroup() {
+    if (!confirm(`Delete "${group.name}" and its options? It will be removed from all products.`)) return;
+    await api.delete(`/admin/modifier-groups/${group.id}`); onChange();
+  }
+
+  return (
+    <div className="card p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <span className="font-bold">{group.name}</span>
+          <span className="ml-2 text-xs text-slate-400">
+            {group.selectType === "SINGLE" ? "pick one" : "pick many"}{group.required ? " · required" : ""}
+          </span>
+        </div>
+        <button onClick={delGroup} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+      </div>
+      <div className="mb-2 divide-y divide-slate-100">
+        {group.options.map((o) => (
+          <div key={o.id} className="flex items-center justify-between py-1.5 text-sm">
+            <span>{o.name}</span>
+            <span className="flex items-center gap-3">
+              <span className="text-slate-500">{o.priceDelta > 0 ? "+" + money(o.priceDelta) : "free"}</span>
+              <button onClick={() => delOpt(o.id)} className="text-slate-300 hover:text-red-500"><X className="h-4 w-4" /></button>
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input value={optName} onChange={(e) => setOptName(e.target.value)} placeholder="Option (e.g. Large)" className="flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+        <input type="number" value={optPrice || ""} onChange={(e) => setOptPrice(Number(e.target.value))} placeholder="+₹0" className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+        <button className="btn-ghost ring-1 ring-slate-200" onClick={addOpt}><Plus className="h-4 w-4" /></button>
       </div>
     </div>
   );

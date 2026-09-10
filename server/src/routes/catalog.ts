@@ -13,10 +13,30 @@ export async function catalogRoutes(app: FastifyInstance) {
         products: {
           where: { active: true },
           orderBy: [{ sort: "asc" }, { name: "asc" }],
+          include: {
+            modifierGroups: {
+              orderBy: { sort: "asc" },
+              include: {
+                group: {
+                  include: { options: { where: { active: true }, orderBy: { sort: "asc" } } },
+                },
+              },
+            },
+          },
         },
       },
     });
-    return { categories };
+    // Flatten each product's groups for the client (drop the join wrapper).
+    const shaped = categories.map((c) => ({
+      ...c,
+      products: c.products.map((p) => ({
+        ...p,
+        modifierGroups: p.modifierGroups
+          .filter((pm) => pm.group.active)
+          .map((pm) => pm.group),
+      })),
+    }));
+    return { categories: shaped };
   });
 
   // Barcode/SKU lookup for the scanner.

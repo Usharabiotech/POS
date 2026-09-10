@@ -26,10 +26,16 @@ import { useOffline } from "../lib/useOffline";
 import { unlockAudio } from "../lib/sound";
 import { useOnlineOrders, type OnlineOrder } from "../lib/useOnlineOrders";
 import { payWithRazorpay, PaymentCancelled } from "../lib/razorpay";
+import { ProductConfig, type ConfiguredItem } from "../components/ProductConfig";
 
 interface CartLine {
+  /** Unique per product + option selection, so differently-configured lines don't merge. */
+  key: string;
   product: Product;
   qty: number;
+  optionIds: string[];
+  optionLabels: string[];
+  unitPrice: number;
 }
 type PayMethod = "CASH" | "UPI" | "CARD";
 
@@ -59,6 +65,7 @@ export default function POS() {
   const [phone, setPhone] = useState("");
   const [showPay, setShowPay] = useState(false);
   const [showPending, setShowPending] = useState(false);
+  const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const { data: config } = useQuery({
@@ -102,22 +109,32 @@ export default function POS() {
   }, [activeCat, search, allProducts]);
 
   // ── Cart ops ──────────────────────────────────────────────────────────────
+  // Products with option groups open a config sheet; plain products add directly.
   function addToCart(p: Product) {
+    if (p.modifierGroups && p.modifierGroups.length > 0) {
+      setConfigProduct(p);
+      return;
+    }
+    addLine(p, { optionIds: [], labels: [], unitPrice: p.price });
+  }
+  function addLine(p: Product, sel: ConfiguredItem) {
+    const key = p.id + "|" + [...sel.optionIds].sort().join(",");
     setCart((c) => {
-      const found = c.find((l) => l.product.id === p.id);
-      if (found) return c.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + 1 } : l));
-      return [...c, { product: p, qty: 1 }];
+      const found = c.find((l) => l.key === key);
+      if (found) return c.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l));
+      return [
+        ...c,
+        { key, product: p, qty: 1, optionIds: sel.optionIds, optionLabels: sel.labels, unitPrice: sel.unitPrice },
+      ];
     });
   }
-  function changeQty(id: string, delta: number) {
+  function changeQty(key: string, delta: number) {
     setCart((c) =>
-      c
-        .map((l) => (l.product.id === id ? { ...l, qty: l.qty + delta } : l))
-        .filter((l) => l.qty > 0)
+      c.map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l)).filter((l) => l.qty > 0)
     );
   }
-  function removeLine(id: string) {
-    setCart((c) => c.filter((l) => l.product.id !== id));
+  function removeLine(key: string) {
+    setCart((c) => c.filter((l) => l.key !== key));
   }
   function clearCart() {
     setCart([]);
@@ -126,7 +143,7 @@ export default function POS() {
     setCustName("");
   }
 
-  const subtotal = cart.reduce((s, l) => s + l.product.price * l.qty, 0);
+  const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0);
   const disc = Math.min(discount, subtotal);
   const tax = Math.round((subtotal - disc) * taxRate * 100) / 100;
   const total = Math.round((subtotal - disc + tax) * 100) / 100;
@@ -303,25 +320,28 @@ export default function POS() {
               </p>
             ) : (
               cart.map((l) => (
-                <div key={l.product.id} className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-slate-50">
+                <div key={l.key} className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-slate-50">
                   <span className="text-xl">{l.product.emoji}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{l.product.name}</p>
-                    <p className="text-xs text-slate-500">{money(l.product.price)}</p>
+                    {l.optionLabels.length > 0 && (
+                      <p className="truncate text-[11px] text-brand-600">{l.optionLabels.join(", ")}</p>
+                    )}
+                    <p className="text-xs text-slate-500">{money(l.unitPrice)}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => changeQty(l.product.id, -1)} className="rounded-lg bg-slate-100 p-1.5">
+                    <button onClick={() => changeQty(l.key, -1)} className="rounded-lg bg-slate-100 p-1.5">
                       <Minus className="h-4 w-4" />
                     </button>
                     <span className="w-6 text-center font-semibold">{l.qty}</span>
-                    <button onClick={() => changeQty(l.product.id, 1)} className="rounded-lg bg-slate-100 p-1.5">
+                    <button onClick={() => changeQty(l.key, 1)} className="rounded-lg bg-slate-100 p-1.5">
                       <Plus className="h-4 w-4" />
                     </button>
                   </div>
                   <span className="w-16 text-right text-sm font-bold">
-                    {money(l.product.price * l.qty)}
+                    {money(l.unitPrice * l.qty)}
                   </span>
-                  <button onClick={() => removeLine(l.product.id)} className="text-slate-300 hover:text-red-500">
+                  <button onClick={() => removeLine(l.key)} className="text-slate-300 hover:text-red-500">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -412,6 +432,17 @@ export default function POS() {
           onSettled={() => {
             qc.invalidateQueries({ queryKey: ["pending"] });
             qc.invalidateQueries({ queryKey: ["kds"] });
+          }}
+        />
+      )}
+
+      {configProduct && (
+        <ProductConfig
+          product={configProduct}
+          onClose={() => setConfigProduct(null)}
+          onAdd={(sel) => {
+            addLine(configProduct, sel);
+            setConfigProduct(null);
           }}
         />
       )}
@@ -578,7 +609,7 @@ function PayModal(props: {
     setBusy(true);
     const payload = {
       source: "POS",
-      items: cart.map((l) => ({ productId: l.product.id, qty: l.qty })),
+      items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, optionIds: l.optionIds })),
       discount,
       payment: { method, tendered: method === "CASH" ? tendered : undefined },
       customerPhone: phone || undefined,
@@ -627,7 +658,7 @@ function PayModal(props: {
     try {
       const order = await payWithRazorpay({
         source: "POS",
-        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty })),
+        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, optionIds: l.optionIds })),
         discount,
         customerPhone: phone || undefined,
         customerName: custName || undefined,
@@ -649,7 +680,7 @@ function PayModal(props: {
     setBusy(true);
     try {
       const draft = {
-        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty })),
+        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, optionIds: l.optionIds })),
         discount,
         customerPhone: phone || undefined,
         customerName: custName || undefined,
@@ -708,13 +739,13 @@ function PayModal(props: {
       tax: props.tax,
       total,
       items: cart.map((l) => ({
-        id: l.product.id,
+        id: l.key,
         name: l.product.name,
         qty: l.qty,
-        unitPrice: l.product.price,
-        lineTotal: l.product.price * l.qty,
+        unitPrice: l.unitPrice,
+        lineTotal: l.unitPrice * l.qty,
         kind: l.product.kind,
-        modifiers: [],
+        modifiers: l.optionLabels,
       })),
       payment: {
         method,

@@ -64,11 +64,16 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export const cartItemSchema = z.object({
   productId: z.string().min(1),
   qty: z.number().int().positive(),
-  /** Optional free-text modifiers/add-ons chosen at the till, e.g. ["No sugar", "Extra ice"]. */
+  /** Chosen ModifierOption ids (size, add-ons, choices). Priced + labelled server-side. */
+  optionIds: z.array(z.string()).optional(),
+  /** Legacy free-text modifiers (still accepted for display). */
   modifiers: z.array(z.string()).optional(),
   note: z.string().optional(),
 });
 export type CartItemInput = z.infer<typeof cartItemSchema>;
+
+export const ModifierSelect = { SINGLE: "SINGLE", MULTI: "MULTI" } as const;
+export type ModifierSelect = (typeof ModifierSelect)[keyof typeof ModifierSelect];
 
 export const paymentSchema = z.object({
   method: z.enum([PaymentMethod.CASH, PaymentMethod.UPI, PaymentMethod.CARD]),

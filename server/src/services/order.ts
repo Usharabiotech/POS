@@ -5,9 +5,58 @@ import { env } from "../env.js";
 export interface CreateOrderItem {
   productId: string;
   qty: number;
+  optionIds?: string[];
   modifiers?: string[];
   note?: string;
 }
+
+/** Product with its attached modifier groups + options, for pricing. */
+type PricedProduct = {
+  id: string; name: string; price: number; kind: string; active: boolean; stock: number | null;
+  modifierGroups: {
+    group: {
+      id: string; name: string; required: boolean; selectType: string; maxSelect: number | null;
+      options: { id: string; name: string; priceDelta: number }[];
+    };
+  }[];
+};
+
+/** Resolve chosen option ids against a product's groups → { labels, delta }. Validates. */
+function resolveOptions(p: PricedProduct, optionIds: string[] = [], enforce = true) {
+  const valid = new Map<string, { name: string; priceDelta: number; groupId: string }>();
+  for (const pm of p.modifierGroups)
+    for (const o of pm.group.options) valid.set(o.id, { ...o, groupId: pm.group.id });
+
+  const chosen = optionIds.filter((id) => valid.has(id));
+  const bad = optionIds.find((id) => !valid.has(id));
+  if (bad) throw new OrderError(400, `Invalid option for ${p.name}`);
+
+  // Per-group counts for required / single / max enforcement.
+  const perGroup: Record<string, number> = {};
+  for (const id of chosen) {
+    const g = valid.get(id)!.groupId;
+    perGroup[g] = (perGroup[g] ?? 0) + 1;
+  }
+  if (enforce)
+    for (const pm of p.modifierGroups) {
+      const g = pm.group;
+      const n = perGroup[g.id] ?? 0;
+      if (g.required && n < 1) throw new OrderError(400, `${p.name}: choose a ${g.name}`);
+      if (g.selectType === "SINGLE" && n > 1) throw new OrderError(400, `${p.name}: pick one ${g.name}`);
+      if (g.maxSelect != null && n > g.maxSelect)
+        throw new OrderError(400, `${p.name}: at most ${g.maxSelect} in ${g.name}`);
+    }
+  const labels = chosen.map((id) => valid.get(id)!.name);
+  const delta = chosen.reduce((s, id) => s + valid.get(id)!.priceDelta, 0);
+  return { labels, delta };
+}
+
+const PRODUCT_INCLUDE = {
+  modifierGroups: {
+    orderBy: { sort: "asc" as const },
+    include: { group: { include: { options: { orderBy: { sort: "asc" as const } } } } },
+  },
+};
 
 export interface CreateOrderInput {
   source: OrderSource;
@@ -39,13 +88,14 @@ export class OrderError extends Error {
 /** Price a cart server-side (no order created) — used to open a Razorpay order. */
 export async function quoteOrder(items: CreateOrderItem[], discountInput = 0) {
   const ids = [...new Set(items.map((i) => i.productId))];
-  const products = await prisma.product.findMany({ where: { id: { in: ids } } });
-  const byId = new Map(products.map((p) => [p.id, p]));
+  const products = await prisma.product.findMany({ where: { id: { in: ids } }, include: PRODUCT_INCLUDE });
+  const byId = new Map(products.map((p) => [p.id, p as unknown as PricedProduct]));
   let subtotal = 0;
   for (const item of items) {
     const p = byId.get(item.productId);
     if (!p || !p.active) throw new OrderError(400, `Product unavailable: ${item.productId}`);
-    subtotal += p.price * item.qty;
+    const { delta } = resolveOptions(p, item.optionIds);
+    subtotal += (p.price + delta) * item.qty;
   }
   const discount = Math.min(discountInput, subtotal);
   const taxable = subtotal - discount;
@@ -66,7 +116,7 @@ export async function createOrder(input: CreateOrderInput) {
   const wholeOrderToKitchen = input.source !== "POS"; // kiosk + online → pack everything
 
   const ids = [...new Set(input.items.map((i) => i.productId))];
-  const products = await prisma.product.findMany({ where: { id: { in: ids } } });
+  const products = await prisma.product.findMany({ where: { id: { in: ids } }, include: PRODUCT_INCLUDE });
   const byId = new Map(products.map((p) => [p.id, p]));
 
   for (const item of input.items) {
@@ -94,7 +144,9 @@ export async function createOrder(input: CreateOrderInput) {
   let subtotal = 0;
   const lines = input.items.map((item) => {
     const p = byId.get(item.productId)!;
-    const lineTotal = p.price * item.qty;
+    const { labels, delta } = resolveOptions(p as unknown as PricedProduct, item.optionIds, !isOnline);
+    const unitPrice = p.price + delta;
+    const lineTotal = unitPrice * item.qty;
     subtotal += lineTotal;
     const kdsStatus =
       wholeOrderToKitchen || p.kind === "PREPARED" ? "PENDING" : "COMPLETED";
@@ -102,9 +154,10 @@ export async function createOrder(input: CreateOrderInput) {
       productId: p.id,
       name: p.name,
       kind: p.kind,
-      unitPrice: p.price,
+      unitPrice,
       qty: item.qty,
-      modifiers: item.modifiers ?? [],
+      // Chosen option labels (e.g. ["Large", "Extra cheese"]) shown on KDS + receipt.
+      modifiers: labels.length ? labels : item.modifiers ?? [],
       note: item.note,
       lineTotal,
       kdsStatus: kdsStatus as "PENDING" | "COMPLETED",

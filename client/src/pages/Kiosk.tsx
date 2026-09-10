@@ -9,12 +9,17 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { api, type Category, type Product } from "../api";
+import { ProductConfig, type ConfiguredItem } from "../components/ProductConfig";
 
 const money = (n: number) => "₹" + n.toFixed(2);
 
 interface Line {
+  key: string;
   product: Product;
   qty: number;
+  optionIds: string[];
+  optionLabels: string[];
+  unitPrice: number;
 }
 type Step = "browse" | "review" | "details" | "tender" | "counter" | "upi" | "done";
 
@@ -31,6 +36,7 @@ export default function Kiosk() {
   const [step, setStep] = useState<Step>("browse");
   const [cat, setCat] = useState<string>("all");
   const [cart, setCart] = useState<Line[]>([]);
+  const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [token, setToken] = useState<number | null>(null);
@@ -60,7 +66,7 @@ export default function Kiosk() {
   const visible = cat === "all" ? all : all.filter((p) => p.categoryId === cat);
 
   const count = cart.reduce((s, l) => s + l.qty, 0);
-  const subtotal = cart.reduce((s, l) => s + l.product.price * l.qty, 0);
+  const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0);
   const taxRate = config?.taxRate ?? 0.05;
   const tax = Math.round(subtotal * taxRate * 100) / 100;
   const total = Math.round((subtotal + tax) * 100) / 100;
@@ -107,14 +113,22 @@ export default function Kiosk() {
   }, [step, orderId]);
 
   function add(p: Product) {
+    if (p.modifierGroups && p.modifierGroups.length > 0) {
+      setConfigProduct(p);
+      return;
+    }
+    addLine(p, { optionIds: [], labels: [], unitPrice: p.price });
+  }
+  function addLine(p: Product, sel: ConfiguredItem) {
+    const key = p.id + "|" + [...sel.optionIds].sort().join(",");
     setCart((c) => {
-      const f = c.find((l) => l.product.id === p.id);
-      if (f) return c.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + 1 } : l));
-      return [...c, { product: p, qty: 1 }];
+      const f = c.find((l) => l.key === key);
+      if (f) return c.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l));
+      return [...c, { key, product: p, qty: 1, optionIds: sel.optionIds, optionLabels: sel.labels, unitPrice: sel.unitPrice }];
     });
   }
-  function change(id: string, d: number) {
-    setCart((c) => c.map((l) => (l.product.id === id ? { ...l, qty: l.qty + d } : l)).filter((l) => l.qty > 0));
+  function change(key: string, d: number) {
+    setCart((c) => c.map((l) => (l.key === key ? { ...l, qty: l.qty + d } : l)).filter((l) => l.qty > 0));
   }
   function reset() {
     setCart([]); setName(""); setPhone(""); setToken(null); setTenderPaid(null);
@@ -125,7 +139,7 @@ export default function Kiosk() {
     setBusy(true);
     try {
       const { data } = await api.post("/kiosk/order", {
-        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty })),
+        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, optionIds: l.optionIds })),
         customerName: name.trim(),
         customerPhone: phone.trim(),
         tender,
@@ -275,16 +289,19 @@ export default function Kiosk() {
         <h1 className="mb-4 text-3xl font-extrabold">Your order</h1>
         <div className="flex-1 space-y-3">
           {cart.map((l) => (
-            <div key={l.product.id} className="card flex items-center gap-4 p-4">
+            <div key={l.key} className="card flex items-center gap-4 p-4">
               <span className="text-4xl">{l.product.emoji}</span>
               <div className="flex-1">
                 <p className="text-lg font-bold">{l.product.name}</p>
-                <p className="text-slate-500">{money(l.product.price)}</p>
+                {l.optionLabels.length > 0 && (
+                  <p className="text-sm text-brand-600">{l.optionLabels.join(", ")}</p>
+                )}
+                <p className="text-slate-500">{money(l.unitPrice)}</p>
               </div>
               <div className="flex items-center gap-3">
-                <button onClick={() => change(l.product.id, -1)} className="rounded-xl bg-slate-100 p-3"><Minus className="h-6 w-6" /></button>
+                <button onClick={() => change(l.key, -1)} className="rounded-xl bg-slate-100 p-3"><Minus className="h-6 w-6" /></button>
                 <span className="w-8 text-center text-2xl font-bold">{l.qty}</span>
-                <button onClick={() => change(l.product.id, 1)} className="rounded-xl bg-slate-100 p-3"><Plus className="h-6 w-6" /></button>
+                <button onClick={() => change(l.key, 1)} className="rounded-xl bg-slate-100 p-3"><Plus className="h-6 w-6" /></button>
               </div>
             </div>
           ))}
@@ -321,7 +338,7 @@ export default function Kiosk() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {visible.map((p) => {
               const out = p.stock !== null && p.stock <= 0;
-              const inCart = cart.find((l) => l.product.id === p.id)?.qty ?? 0;
+              const inCart = cart.filter((l) => l.product.id === p.id).reduce((s, l) => s + l.qty, 0);
               return (
                 <button
                   key={p.id}
@@ -371,6 +388,18 @@ export default function Kiosk() {
           onClose={() => setLockOpen(false)}
           onToggleFs={() => (isFs ? exitFullscreen() : enterFullscreen())}
           onExit={() => { exitFullscreen(); nav("/"); }}
+        />
+      )}
+
+      {configProduct && (
+        <ProductConfig
+          product={configProduct}
+          big
+          onClose={() => setConfigProduct(null)}
+          onAdd={(sel) => {
+            addLine(configProduct, sel);
+            setConfigProduct(null);
+          }}
         />
       )}
     </div>

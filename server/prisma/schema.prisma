@@ -48,6 +48,11 @@ enum PaymentMethod {
   ONLINE
 }
 
+enum ModifierSelect {
+  SINGLE
+  MULTI
+}
+
 model User {
   id           String   @id @default(cuid())
   username     String   @unique
@@ -89,8 +94,51 @@ model Product {
   sort       Int         @default(0)
   createdAt  DateTime    @default(now())
   orderItems OrderItem[]
+  /// Reusable option groups attached to this product (Size, Add-ons, …).
+  modifierGroups ProductModifier[]
 
   @@index([categoryId])
+}
+
+/// A reusable set of options (e.g. "Size", "Add-ons", "Toppings"). Attached to many products.
+model ModifierGroup {
+  id         String            @id @default(cuid())
+  name       String
+  selectType ModifierSelect    @default(SINGLE)
+  /// Must the customer pick from this group? (e.g. Size is required)
+  required   Boolean           @default(false)
+  minSelect  Int               @default(0)
+  /// null = unlimited (multi-select).
+  maxSelect  Int?
+  sort       Int               @default(0)
+  active     Boolean           @default(true)
+  options    ModifierOption[]
+  products   ProductModifier[]
+}
+
+model ModifierOption {
+  id         String        @id @default(cuid())
+  groupId    String
+  group      ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name       String
+  /// Amount added to the base price when chosen (0 for free choices).
+  priceDelta Float         @default(0)
+  sort       Int           @default(0)
+  active     Boolean       @default(true)
+
+  @@index([groupId])
+}
+
+/// Product ↔ ModifierGroup link (many-to-many with ordering).
+model ProductModifier {
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sort      Int           @default(0)
+
+  @@id([productId, groupId])
+  @@index([productId])
 }
 
 model Customer {
