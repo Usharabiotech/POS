@@ -135,6 +135,7 @@ export async function downloadEOD(date?: string): Promise<{ purgedOrders: number
   triggerDownload(blob, `CafePOS_EOD_${d.storeName.replace(/[^a-zA-Z0-9]+/g, "-")}_${d.date}.zip`);
 
   // Close the day in the cloud (persist summary + purge old detail).
-  const close = await api.post("/eod/close", null, { params: date ? { date } : {} });
+  // Send {} (not null) so axios sets a JSON content-type the server accepts.
+  const close = await api.post("/eod/close", {}, { params: date ? { date } : {} });
   return { purgedOrders: close.data.purgedOrders ?? 0, orderCount: d.summary.orderCount };
 }

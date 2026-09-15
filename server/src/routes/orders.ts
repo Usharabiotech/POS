@@ -85,10 +85,15 @@ export async function orderRoutes(app: FastifyInstance) {
     }
   });
 
-  // Recent orders (for a simple bills/history view).
+  // Recent orders (bills/history + per-transaction trend view). Optional source filter.
   app.get("/orders", { preHandler: requireAuth }, async (req) => {
-    const { limit } = req.query as { limit?: string };
+    const { limit, source } = req.query as { limit?: string; source?: string };
+    const sources = ["POS", "KIOSK", "QR", "SWIGGY", "ZOMATO"] as const;
+    const where = source && (sources as readonly string[]).includes(source)
+      ? { source: source as (typeof sources)[number] }
+      : {};
     const orders = await prisma.order.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       take: Math.min(Number(limit ?? 50), 200),
       include: { items: true, payment: true, customer: true },
