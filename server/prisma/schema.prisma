@@ -53,6 +53,21 @@ enum ModifierSelect {
   MULTI
 }
 
+/// A branch/outlet. One install = one owner; add Stores as they open branches.
+/// Menu + customers are shared across stores; orders, summaries (and later stock)
+/// are per store, so reports can be per-branch or cumulative (sum across stores).
+model Store {
+  id        String         @id @default(cuid())
+  name      String
+  code      String?        @unique
+  address   String?
+  gst       String?
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  orders    Order[]
+  summaries DailySummary[]
+}
+
 model User {
   id           String   @id @default(cuid())
   username     String   @unique
@@ -170,6 +185,9 @@ model Order {
   tender     String?
   /// Snapshot of the customer name entered at the till/kiosk.
   customerName String?
+  /// Which branch this order belongs to (null = the single default store).
+  storeId    String?
+  store      Store?      @relation(fields: [storeId], references: [id])
   cashierId  String?
   cashier    User?       @relation(fields: [cashierId], references: [id])
   customerId String?
@@ -182,6 +200,7 @@ model Order {
   @@index([status])
   @@index([source, createdAt])
   @@index([externalRef])
+  @@index([storeId, createdAt])
 }
 
 model OrderItem {
@@ -210,7 +229,10 @@ model OrderItem {
 model DailySummary {
   id         String   @id @default(cuid())
   /// Local calendar day, YYYY-MM-DD.
-  date       String   @unique
+  date       String
+  /// Which branch (null = the single default store).
+  storeId    String?
+  store      Store?   @relation(fields: [storeId], references: [id])
   orderCount Int
   sales      Float
   tax        Float
@@ -222,6 +244,8 @@ model DailySummary {
   /// 24-slot hourly sales.
   hourly     Json
   closedAt   DateTime @default(now())
+
+  @@unique([storeId, date])
 }
 
 model Payment {

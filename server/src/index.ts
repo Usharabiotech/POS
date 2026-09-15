@@ -15,6 +15,8 @@ import { paymentRoutes } from "./routes/payments.js";
 import { inventoryRoutes } from "./routes/inventory.js";
 import { eodRoutes } from "./routes/eod.js";
 import { modifierRoutes } from "./routes/modifiers.js";
+import { storeRoutes } from "./routes/stores.js";
+import { backfillStore } from "./services/store.js";
 import { prisma } from "./db.js";
 
 const app = Fastify({
@@ -65,6 +67,7 @@ await app.register(paymentRoutes, { prefix: "/api" });
 await app.register(inventoryRoutes, { prefix: "/api" });
 await app.register(eodRoutes, { prefix: "/api" });
 await app.register(modifierRoutes, { prefix: "/api" });
+await app.register(storeRoutes, { prefix: "/api" });
 
 // Single-container production: serve the built SPA from the same process (cheap hosting).
 if (env.publicDir) {
@@ -95,6 +98,8 @@ if (env.nodeEnv === "production") {
       app.log.info("DB: empty — seeding catalog + admin…");
       execSync("npm run db:seed", { stdio: "inherit" });
     }
+    // Ensure a default store exists and legacy rows are stamped onto it.
+    await backfillStore();
     app.log.info("DB: ready.");
   } catch (err) {
     app.log.error({ err }, "DB bootstrap failed — check DATABASE_URL / migrations");

@@ -1,6 +1,7 @@
 import type { OrderSource, PaymentMethod } from "@prisma/client";
 import { prisma } from "../db.js";
 import { env } from "../env.js";
+import { getDefaultStoreId } from "./store.js";
 
 export interface CreateOrderItem {
   productId: string;
@@ -77,6 +78,8 @@ export interface CreateOrderInput {
   tender?: string;
   /** Razorpay order id to poll while awaiting a UPI payment. */
   gatewayOrderId?: string;
+  /** Which branch this order belongs to (defaults to the single store). */
+  storeId?: string;
 }
 
 export class OrderError extends Error {
@@ -211,10 +214,13 @@ export async function createOrder(input: CreateOrderInput) {
     customerId = customer.id;
   }
 
+  const storeId = input.storeId ?? (await getDefaultStoreId());
+
   const order = await prisma.$transaction(async (tx) => {
     const created = await tx.order.create({
       data: {
         source: input.source,
+        storeId,
         status,
         subtotal,
         discount,

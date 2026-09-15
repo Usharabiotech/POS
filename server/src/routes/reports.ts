@@ -17,11 +17,16 @@ function dayRange(dateStr?: string) {
 export async function reportRoutes(app: FastifyInstance) {
   // Day summary for the dashboard / day-close: totals, payment mix, top items, hourly.
   app.get("/reports/summary", { preHandler: requireAuth }, async (req) => {
-    const { date } = req.query as { date?: string };
+    const { date, storeId } = req.query as { date?: string; storeId?: string };
     const { start, end, label } = dayRange(date);
 
+    // No storeId → cumulative across all branches; storeId → that branch only.
     const orders = await prisma.order.findMany({
-      where: { createdAt: { gte: start, lt: end }, status: { not: "CANCELLED" } },
+      where: {
+        createdAt: { gte: start, lt: end },
+        status: { not: "CANCELLED" },
+        ...(storeId ? { storeId } : {}),
+      },
       include: { items: true, payment: true },
     });
 

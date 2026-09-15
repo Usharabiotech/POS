@@ -20,9 +20,17 @@ interface Summary {
 }
 
 export default function Reports() {
+  const [store, setStore] = useState<string>("all"); // "all" = cumulative across branches
+  const { data: storesData } = useQuery({
+    queryKey: ["stores"],
+    queryFn: async () => (await api.get("/stores")).data as { stores: { id: string; name: string }[] },
+  });
+  const stores = storesData?.stores ?? [];
+
   const { data } = useQuery({
-    queryKey: ["summary"],
-    queryFn: async () => (await api.get("/reports/summary")).data as Summary,
+    queryKey: ["summary", store],
+    queryFn: async () =>
+      (await api.get("/reports/summary", { params: store !== "all" ? { storeId: store } : {} })).data as Summary,
     refetchInterval: 15000,
   });
 
@@ -55,6 +63,16 @@ export default function Reports() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <h1 className="text-xl font-bold">Today · {data?.date ?? ""}</h1>
+        {stores.length > 1 && (
+          <select
+            value={store}
+            onChange={(e) => setStore(e.target.value)}
+            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+          >
+            <option value="all">All branches (cumulative)</option>
+            {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        )}
         {isAdmin && (
           <button onClick={closeDay} disabled={closing} className="btn-primary ml-auto">
             <DownloadCloud className="h-5 w-5" />
