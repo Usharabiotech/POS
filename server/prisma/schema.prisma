@@ -105,6 +105,10 @@ model Product {
   /// Emoji/color used for the POS/kiosk tile so no image hosting is needed (keeps it cheap).
   emoji      String      @default("🍓")
   color      String      @default("#e2f5e9")
+  /// Optional product photo as a small compressed data URI (shrunk client-side, ~20-40KB).
+  /// Falls back to the emoji when empty. Kept tiny so cloud storage stays cheap.
+  image      String?
+
   active     Boolean     @default(true)
   sort       Int         @default(0)
   createdAt  DateTime    @default(now())

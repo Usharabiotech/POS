@@ -276,7 +276,11 @@ export default function POS() {
                         out && "opacity-40"
                       )}
                     >
-                      <span className="text-3xl">{p.emoji}</span>
+                      {p.image ? (
+                        <img src={p.image} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                      ) : (
+                        <span className="text-3xl">{p.emoji}</span>
+                      )}
                       <span className="line-clamp-2 text-sm font-semibold leading-tight text-slate-800">
                         {p.name}
                       </span>

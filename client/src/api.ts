@@ -71,6 +71,7 @@ export interface Product {
   lowStockAt: number;
   emoji: string;
   color: string;
+  image?: string | null;
   categoryId: string;
   modifierGroups?: ModGroup[];
 }

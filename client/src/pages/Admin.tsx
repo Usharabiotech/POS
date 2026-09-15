@@ -20,6 +20,7 @@ interface AdminProduct {
   active: boolean;
   lowStockAt: number;
   cost: number | null;
+  image: string | null;
   category: { name: string; emoji: string };
 }
 interface Cat {
@@ -187,6 +188,23 @@ function ProductModal({
   const [price, setPrice] = useState(product?.price ?? 0);
   const [cost, setCost] = useState<number>(product?.cost ?? 0);
   const [emoji, setEmoji] = useState(product?.emoji ?? "🍓");
+  const [image, setImage] = useState<string | null>(product?.image ?? null);
+  const [imgBusy, setImgBusy] = useState(false);
+
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImgBusy(true);
+    try {
+      const { compressImage } = await import("../lib/image");
+      setImage(await compressImage(file));
+    } catch {
+      toast.error("Could not process that image");
+    } finally {
+      setImgBusy(false);
+      e.target.value = "";
+    }
+  }
   const [tracksStock, setTracksStock] = useState(product ? product.stock !== null : true);
   const [stock, setStock] = useState(product?.stock ?? 0);
   const [busy, setBusy] = useState(false);
@@ -216,6 +234,7 @@ function ProductModal({
       price: Number(price),
       cost: cost ? Number(cost) : null,
       emoji,
+      image,
       stock: tracksStock ? Number(stock) : null,
     };
     try {
@@ -252,6 +271,26 @@ function ProductModal({
               className="flex-1 rounded-xl border border-slate-300 px-3 py-2"
             />
           </div>
+
+          {/* Product photo (optional) — shrunk to a small thumbnail before saving. */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-2xl">
+              {image ? <img src={image} alt="" className="h-full w-full object-cover" /> : emoji}
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="btn-ghost cursor-pointer ring-1 ring-slate-200 text-sm">
+                {imgBusy ? "Processing…" : image ? "Change photo" : "Add photo"}
+                <input type="file" accept="image/*" className="hidden" onChange={onPickImage} />
+              </label>
+              {image && (
+                <button type="button" onClick={() => setImage(null)} className="text-left text-xs text-red-500">
+                  Remove photo
+                </button>
+              )}
+              <span className="text-[11px] text-slate-400">Optional · auto-shrunk to save space</span>
+            </div>
+          </div>
+
           <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}

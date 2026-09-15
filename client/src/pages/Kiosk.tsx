@@ -350,7 +350,11 @@ export default function Kiosk() {
                   {inCart > 0 && (
                     <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">{inCart}</span>
                   )}
-                  <span className="text-5xl">{p.emoji}</span>
+                  {p.image ? (
+                    <img src={p.image} alt="" className="h-20 w-20 rounded-xl object-cover" />
+                  ) : (
+                    <span className="text-5xl">{p.emoji}</span>
+                  )}
                   <span className="text-base font-bold leading-tight text-slate-800">{p.name}</span>
                   <span className="text-lg font-extrabold text-slate-900">{money(p.price)}</span>
                 </button>
