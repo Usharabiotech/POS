@@ -70,6 +70,31 @@ export async function kdsRoutes(app: FastifyInstance) {
     return { ok: true, number: order.number };
   });
 
+  // Clear ALL tickets at once — same admin-password gate.
+  app.post("/kds/clear-all", { preHandler: requireAuth }, async (req, reply) => {
+    const parsed = z.object({ password: z.string().min(1) }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Password required" });
+
+    const admins = await prisma.user.findMany({ where: { role: "ADMIN", active: true } });
+    let ok = false;
+    for (const a of admins) {
+      if (await bcrypt.compare(parsed.data.password, a.passwordHash)) { ok = true; break; }
+    }
+    if (!ok) return reply.code(403).send({ error: "Wrong admin password" });
+
+    const items = await prisma.orderItem.findMany({
+      where: { kdsStatus: { not: "COMPLETED" }, order: { is: { paid: true } } },
+      select: { orderId: true },
+    });
+    const orderIds = [...new Set(items.map((i) => i.orderId))];
+    await prisma.orderItem.updateMany({
+      where: { orderId: { in: orderIds }, kdsStatus: { not: "COMPLETED" } },
+      data: { kdsStatus: "COMPLETED" },
+    });
+    await prisma.order.updateMany({ where: { id: { in: orderIds } }, data: { status: "COMPLETED" } });
+    return { ok: true, count: orderIds.length };
+  });
+
   // Advance a single line's kitchen status (Pending → Preparing → Ready → Completed).
   app.patch("/kds/items/:id", { preHandler: requireAuth }, async (req, reply) => {
     const { id } = req.params as { id: string };

@@ -66,18 +66,28 @@ export default function KDS() {
   });
   const tickets = data?.tickets ?? [];
 
-  const [clearing, setClearing] = useState<{ orderId: string; number: number } | null>(null);
+  const [clearing, setClearing] = useState<{ orderId: string; number: number } | { all: true } | null>(null);
   const [pw, setPw] = useState("");
   const [pwErr, setPwErr] = useState(false);
   const [pwBusy, setPwBusy] = useState(false);
+  const clearAll = clearing !== null && "all" in clearing;
+
+  function openClear(target: { orderId: string; number: number } | { all: true }) {
+    setClearing(target); setPw(""); setPwErr(false);
+  }
 
   async function confirmClear() {
     if (!clearing) return;
     setPwBusy(true);
     setPwErr(false);
     try {
-      await api.post(`/kds/clear/${clearing.orderId}`, { password: pw });
-      toast.success(`Ticket #${clearing.number} cleared`);
+      if ("all" in clearing) {
+        const { data } = await api.post(`/kds/clear-all`, { password: pw });
+        toast.success(`Cleared ${data.count} ticket${data.count === 1 ? "" : "s"}`);
+      } else {
+        await api.post(`/kds/clear/${clearing.orderId}`, { password: pw });
+        toast.success(`Ticket #${clearing.number} cleared`);
+      }
       setClearing(null);
       setPw("");
       qc.invalidateQueries({ queryKey: ["kds"] });
@@ -134,6 +144,14 @@ export default function KDS() {
               </button>
             </div>
           )}
+          {tickets.length > 0 && (
+            <button
+              onClick={() => openClear({ all: true })}
+              className="flex items-center gap-1.5 rounded-lg bg-red-500/80 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-500"
+            >
+              <Lock className="h-4 w-4" /> Clear all
+            </button>
+          )}
           <span className="text-sm text-white/60">{tickets.length} active · updates every 3s</span>
         </div>
       </header>
@@ -187,7 +205,7 @@ export default function KDS() {
               ))}
             </div>
             <button
-              onClick={() => { setClearing({ orderId: t.orderId, number: t.number }); setPw(""); setPwErr(false); }}
+              onClick={() => openClear({ orderId: t.orderId, number: t.number })}
               className="m-3 mt-0 flex items-center justify-center gap-2 rounded-xl bg-white/10 py-2 text-sm font-bold text-white/80 hover:bg-white/20"
             >
               <Lock className="h-4 w-4" /> Clear ticket
@@ -200,10 +218,16 @@ export default function KDS() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 text-slate-900">
           <div className="w-full max-w-xs rounded-2xl bg-white p-5 text-center">
             <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-lg font-bold">Clear ticket #{clearing.number}</h3>
+              <h3 className="text-lg font-bold">
+                {clearAll ? "Clear ALL tickets" : `Clear ticket #${(clearing as { number: number }).number}`}
+              </h3>
               <button onClick={() => setClearing(null)} className="text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
             </div>
-            <p className="mb-3 text-sm text-slate-500">Enter the admin password to clear this ticket.</p>
+            <p className="mb-3 text-sm text-slate-500">
+              {clearAll
+                ? "Enter the admin password to clear every ticket on the display."
+                : "Enter the admin password to clear this ticket."}
+            </p>
             <input
               type="password"
               autoFocus
