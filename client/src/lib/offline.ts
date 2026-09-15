@@ -13,6 +13,8 @@ export interface QueuedOrder {
   /** Local reference shown on the provisional receipt until sync assigns a real #. */
   ref: string;
   createdAt: string;
+  /** Lightweight display info for the pending-sync view. */
+  summary?: { total: number; items: number; tender: string };
 }
 
 function open(): Promise<IDBDatabase> {
@@ -39,9 +41,12 @@ async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBReq
   });
 }
 
-export async function enqueue(payload: unknown): Promise<QueuedOrder> {
+export async function enqueue(
+  payload: unknown,
+  summary?: { total: number; items: number; tender: string }
+): Promise<QueuedOrder> {
   const ref = "OFF-" + Date.now().toString().slice(-6);
-  const item: QueuedOrder = { payload, ref, createdAt: new Date().toISOString() };
+  const item: QueuedOrder = { payload, ref, createdAt: new Date().toISOString(), summary };
   const id = await tx<number>("readwrite", (s) => s.add(item));
   item.id = id;
   emitChange();

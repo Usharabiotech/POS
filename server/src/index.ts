@@ -53,6 +53,7 @@ app.get("/api/config", async () => ({
   taxRate: env.taxRate,
   currency: env.currency,
   kioskPin: env.kioskPin,
+  upiVpa: env.upiVpa,
 }));
 
 await app.register(authRoutes, { prefix: "/api/auth" });

@@ -16,12 +16,13 @@ import {
   Wifi,
   WifiOff,
   Clock,
+  RefreshCw,
   X,
 } from "lucide-react";
 import clsx from "clsx";
 import { api, clearSession, getUser, type Category, type Product } from "../api";
 import { Receipt, type ReceiptOrder } from "../components/Receipt";
-import { enqueue } from "../lib/offline";
+import { enqueue, getAll as getQueued, onQueueChange, flushQueue, type QueuedOrder } from "../lib/offline";
 import { useOffline } from "../lib/useOffline";
 import { unlockAudio } from "../lib/sound";
 import { useOnlineOrders, type OnlineOrder } from "../lib/useOnlineOrders";
@@ -65,12 +66,14 @@ export default function POS() {
   const [phone, setPhone] = useState("");
   const [showPay, setShowPay] = useState(false);
   const [showPending, setShowPending] = useState(false);
+  const [showSync, setShowSync] = useState(false);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const { data: config } = useQuery({
     queryKey: ["config"],
-    queryFn: async () => (await api.get("/config")).data as { storeName: string; taxRate: number },
+    queryFn: async () =>
+      (await api.get("/config")).data as { storeName: string; taxRate: number; upiVpa?: string },
   });
   const taxRate = config?.taxRate ?? 0.05;
 
@@ -154,6 +157,12 @@ export default function POS() {
       {onlineOrder && (
         <OnlineOrderAlert order={onlineOrder} onDismiss={dismissOnline} onView={() => nav("/kds")} />
       )}
+      {!online && (
+        <div className="flex items-center justify-center gap-2 bg-amber-500 px-4 py-1.5 text-sm font-bold text-white">
+          <WifiOff className="h-4 w-4" /> Offline — taking cash{config?.upiVpa ? " / UPI QR" : ""}, orders will sync when internet returns
+          {queued > 0 && <span className="rounded-full bg-white/25 px-2">{queued} to sync</span>}
+        </div>
+      )}
       {/* Top bar */}
       <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5">
         <div className="flex items-center gap-2 font-bold">
@@ -184,6 +193,18 @@ export default function POS() {
               <span className="ml-1 rounded-full bg-amber-500 px-1.5 text-white">{queued}</span>
             )}
           </span>
+          {queued > 0 && (
+            <button
+              onClick={() => setShowSync(true)}
+              className="btn-ghost relative"
+              title="Orders waiting to sync"
+            >
+              <RefreshCw className="h-5 w-5" />
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-xs font-bold text-white">
+                {queued}
+              </span>
+            </button>
+          )}
           <button
             onClick={() => setShowPending(true)}
             className="btn-ghost relative"
@@ -421,6 +442,8 @@ export default function POS() {
           storeName={config?.storeName ?? "CafePOS"}
           canPayOnline={canPayOnline}
           demoMode={!!payCfg?.mock}
+          online={online}
+          upiVpa={config?.upiVpa ?? ""}
           onClose={() => setShowPay(false)}
           onDone={() => {
             setShowPay(false);
@@ -450,6 +473,66 @@ export default function POS() {
           }}
         />
       )}
+
+      {showSync && <PendingSyncModal onClose={() => setShowSync(false)} />}
+    </div>
+  );
+}
+
+function PendingSyncModal({ onClose }: { onClose: () => void }) {
+  const [items, setItems] = useState<QueuedOrder[]>([]);
+  const [busy, setBusy] = useState(false);
+  const load = () => getQueued().then(setItems).catch(() => {});
+  useEffect(() => {
+    load();
+    return onQueueChange(load);
+  }, []);
+
+  async function syncNow() {
+    if (!navigator.onLine) {
+      toast.error("Still offline — connect to the internet to sync");
+      return;
+    }
+    setBusy(true);
+    try {
+      const n = await flushQueue();
+      toast.success(n > 0 ? `Synced ${n} order${n > 1 ? "s" : ""}` : "Nothing synced yet");
+      load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="card flex max-h-[80vh] w-full max-w-md flex-col p-6">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-xl font-bold">Waiting to sync</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="h-6 w-6" /></button>
+        </div>
+        <p className="mb-3 text-sm text-slate-500">
+          {items.length === 0
+            ? "All caught up — nothing pending."
+            : `${items.length} order${items.length > 1 ? "s" : ""} saved on this device, not yet uploaded.`}
+        </p>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {items.map((q) => (
+            <div key={q.id} className="flex items-center justify-between border-b border-slate-100 py-2 text-sm">
+              <div>
+                <span className="font-semibold">{q.ref}</span>
+                <span className="ml-2 text-xs text-slate-400">
+                  {new Date(q.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {q.summary ? ` · ${q.summary.items} item${q.summary.items > 1 ? "s" : ""} · ${q.summary.tender}` : ""}
+                </span>
+              </div>
+              {q.summary && <span className="font-bold">{money(q.summary.total)}</span>}
+            </div>
+          ))}
+        </div>
+        <button className="btn-primary mt-4 w-full py-2.5" onClick={syncNow} disabled={busy || items.length === 0}>
+          {busy ? "Syncing…" : "Sync now"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -587,11 +670,14 @@ function PayModal(props: {
   storeName: string;
   canPayOnline: boolean;
   demoMode: boolean;
+  online: boolean;
+  upiVpa: string;
   onClose: () => void;
   onDone: () => void;
 }) {
-  const { total, cart, phone, custName, discount, storeName, canPayOnline } = props;
+  const { total, cart, phone, custName, discount, storeName, canPayOnline, online, upiVpa } = props;
   const payCfgMock = props.demoMode;
+  const [staticQr, setStaticQr] = useState<string>(""); // static UPI QR (manual/offline)
   const [method, setMethod] = useState<PayMethod>("CASH");
   const [tendered, setTendered] = useState<number>(0);
   const [busy, setBusy] = useState(false);
@@ -599,6 +685,10 @@ function PayModal(props: {
   // UPI-on-screen: show a QR, wait for the payment handshake, then complete.
   const [upi, setUpi] = useState<{ orderId: string; url: string; mock: boolean; amount: number } | null>(null);
   const [qrUrl, setQrUrl] = useState("");
+  // Offline can't take card (needs the machine's network) — fall back to cash.
+  useEffect(() => {
+    if (!online && method === "CARD") setMethod("CASH");
+  }, [online, method]);
 
   const change = method === "CASH" ? Math.max(0, tendered - total) : 0;
   const quickCash = [total, Math.ceil(total / 50) * 50, Math.ceil(total / 100) * 100, Math.ceil(total / 500) * 500].filter(
@@ -623,7 +713,7 @@ function PayModal(props: {
     // Offline: queue the sale locally, print a provisional receipt, sync later.
     if (!navigator.onLine) {
       try {
-        const q = await enqueue(payload);
+        const q = await enqueue(payload, { total, items: cart.reduce((s, l) => s + l.qty, 0), tender: method });
         setDone(buildLocalOrder(q.ref));
         toast.message("Saved offline — will sync when online");
       } catch {
@@ -641,7 +731,7 @@ function PayModal(props: {
     } catch (e: any) {
       // Network died mid-request → fall back to the offline queue.
       if (!e?.response) {
-        const q = await enqueue(payload);
+        const q = await enqueue(payload, { total, items: cart.reduce((s, l) => s + l.qty, 0), tender: method });
         setDone(buildLocalOrder(q.ref));
         toast.message("Saved offline — will sync when online");
       } else {
@@ -697,6 +787,15 @@ function PayModal(props: {
     } finally {
       setBusy(false);
     }
+  }
+
+  // Static merchant UPI QR (pay to our VPA). Works offline; confirmed manually.
+  async function showStaticUpi() {
+    const link = `upi://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(
+      storeName
+    )}&am=${total.toFixed(2)}&cu=INR&tn=${encodeURIComponent("Order payment")}`;
+    const url = await QRCode.toDataURL(link, { width: 240, margin: 1 }).catch(() => "");
+    setStaticQr(url);
   }
 
   async function mockPayUpi() {
@@ -818,6 +917,22 @@ function PayModal(props: {
               </button>
             )}
           </div>
+        ) : staticQr ? (
+          <div className="text-center">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xl font-bold">Scan &amp; Pay (UPI)</h3>
+              <button onClick={() => setStaticQr("")} className="text-slate-400 hover:text-slate-700"><X className="h-6 w-6" /></button>
+            </div>
+            <p className="text-3xl font-extrabold text-brand-700">{money(total)}</p>
+            <div className="my-3 flex justify-center">
+              <img src={staticQr} alt="UPI QR" className="h-56 w-56 rounded-xl ring-1 ring-slate-200" />
+            </div>
+            <p className="text-xs text-slate-500">Pays directly to {storeName}. Confirm on your UPI app, then tap below.</p>
+            {!online && <p className="mt-1 text-xs text-amber-600">Offline — this sale will sync when internet returns.</p>}
+            <button className="btn-primary mt-4 w-full py-3 text-lg" onClick={pay} disabled={busy}>
+              {busy ? "Recording…" : "Payment received"}
+            </button>
+          </div>
         ) : (
           <>
             <div className="mb-4 flex items-center justify-between">
@@ -831,7 +946,7 @@ function PayModal(props: {
               <p className="text-4xl font-extrabold text-brand-700">{money(total)}</p>
             </div>
             <div className="mb-4 grid grid-cols-3 gap-2">
-              {(["CASH", "UPI", "CARD"] as PayMethod[]).map((m) => (
+              {(online ? (["CASH", "UPI", "CARD"] as PayMethod[]) : upiVpa ? (["CASH", "UPI"] as PayMethod[]) : (["CASH"] as PayMethod[])).map((m) => (
                 <button
                   key={m}
                   onClick={() => setMethod(m)}
@@ -870,16 +985,20 @@ function PayModal(props: {
                 </div>
               </div>
             )}
-            {method === "UPI" && canPayOnline ? (
+            {method === "UPI" && online && canPayOnline ? (
               <button className="btn-primary w-full py-3 text-lg" onClick={startUpiQr} disabled={busy}>
                 {busy ? "Starting…" : "📲 Show UPI QR & wait for payment"}
+              </button>
+            ) : method === "UPI" && upiVpa ? (
+              <button className="btn-primary w-full py-3 text-lg" onClick={showStaticUpi} disabled={busy}>
+                📲 Show UPI QR (pay to us)
               </button>
             ) : (
               <button className="btn-primary w-full py-3 text-lg" onClick={pay} disabled={busy}>
                 {busy ? "Processing…" : `Confirm ${method}`}
               </button>
             )}
-            {canPayOnline && method !== "UPI" && (
+            {online && canPayOnline && method !== "UPI" && (
               <>
                 <div className="my-3 flex items-center gap-3 text-xs text-slate-400">
                   <span className="h-px flex-1 bg-slate-200" /> or <span className="h-px flex-1 bg-slate-200" />

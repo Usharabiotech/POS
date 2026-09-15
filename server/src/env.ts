@@ -21,6 +21,8 @@ export const env = {
   currency: process.env.CURRENCY ?? "INR",
   // PIN a manager/cashier enters to unlock the kiosk menu (exit / windowed).
   kioskPin: process.env.KIOSK_PIN ?? "1010",
+  // Merchant UPI id for the static "pay to us" QR (works even offline; manual confirm).
+  upiVpa: process.env.UPI_VPA ?? "",
   // Keep this many days of DETAILED orders in the cloud; older ones are purged after
   // their daily summary is saved (the full copy lives in the local EOD archive).
   retentionDays: Number(process.env.RETENTION_DAYS ?? 45),
