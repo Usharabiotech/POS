@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Lock, X } from "lucide-react";
 import clsx from "clsx";
 import { api, getUser } from "../api";
 
@@ -64,6 +65,29 @@ export default function KDS() {
     refetchInterval: 3000, // cheap realtime: poll, no WebSocket server needed
   });
   const tickets = data?.tickets ?? [];
+
+  const [clearing, setClearing] = useState<{ orderId: string; number: number } | null>(null);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState(false);
+  const [pwBusy, setPwBusy] = useState(false);
+
+  async function confirmClear() {
+    if (!clearing) return;
+    setPwBusy(true);
+    setPwErr(false);
+    try {
+      await api.post(`/kds/clear/${clearing.orderId}`, { password: pw });
+      toast.success(`Ticket #${clearing.number} cleared`);
+      setClearing(null);
+      setPw("");
+      qc.invalidateQueries({ queryKey: ["kds"] });
+    } catch (e: any) {
+      if (e?.response?.status === 403) setPwErr(true);
+      else toast.error(e?.response?.data?.error ?? "Could not clear");
+    } finally {
+      setPwBusy(false);
+    }
+  }
 
   async function advance(item: KItem) {
     const next = NEXT[item.kdsStatus];
@@ -162,9 +186,43 @@ export default function KDS() {
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => { setClearing({ orderId: t.orderId, number: t.number }); setPw(""); setPwErr(false); }}
+              className="m-3 mt-0 flex items-center justify-center gap-2 rounded-xl bg-white/10 py-2 text-sm font-bold text-white/80 hover:bg-white/20"
+            >
+              <Lock className="h-4 w-4" /> Clear ticket
+            </button>
           </div>
         ))}
       </div>
+
+      {clearing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 text-slate-900">
+          <div className="w-full max-w-xs rounded-2xl bg-white p-5 text-center">
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="text-lg font-bold">Clear ticket #{clearing.number}</h3>
+              <button onClick={() => setClearing(null)} className="text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+            </div>
+            <p className="mb-3 text-sm text-slate-500">Enter the admin password to clear this ticket.</p>
+            <input
+              type="password"
+              autoFocus
+              value={pw}
+              onChange={(e) => { setPw(e.target.value); setPwErr(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmClear(); }}
+              placeholder="Admin password"
+              className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-center outline-none focus:border-brand-500"
+            />
+            {pwErr && <p className="mt-2 text-sm font-semibold text-red-500">Wrong admin password</p>}
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button onClick={() => setClearing(null)} className="btn-ghost py-2.5 ring-1 ring-slate-200">Cancel</button>
+              <button onClick={confirmClear} disabled={pwBusy || !pw} className="btn-primary py-2.5">
+                {pwBusy ? "Clearing…" : "Clear"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

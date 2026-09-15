@@ -1,4 +1,6 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { kdsUpdateSchema } from "@cafepos/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../auth.js";
@@ -41,6 +43,31 @@ export async function kdsRoutes(app: FastifyInstance) {
       t.items.push(it);
     }
     return { tickets: [...ticketMap.values()] };
+  });
+
+  // Clear one whole ticket at once — requires an admin password (so kitchen/cashier
+  // staff can't wipe orders without authorization). Marks every line COMPLETED.
+  app.post("/kds/clear/:id", { preHandler: requireAuth }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = z.object({ password: z.string().min(1) }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Password required" });
+
+    const admins = await prisma.user.findMany({ where: { role: "ADMIN", active: true } });
+    let ok = false;
+    for (const a of admins) {
+      if (await bcrypt.compare(parsed.data.password, a.passwordHash)) { ok = true; break; }
+    }
+    if (!ok) return reply.code(403).send({ error: "Wrong admin password" });
+
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) return reply.code(404).send({ error: "Order not found" });
+
+    await prisma.orderItem.updateMany({
+      where: { orderId: id, kdsStatus: { not: "COMPLETED" } },
+      data: { kdsStatus: "COMPLETED" },
+    });
+    await prisma.order.update({ where: { id }, data: { status: "COMPLETED" } });
+    return { ok: true, number: order.number };
   });
 
   // Advance a single line's kitchen status (Pending → Preparing → Ready → Completed).
