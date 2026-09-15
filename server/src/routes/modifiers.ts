@@ -88,6 +88,30 @@ export async function modifierRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // Bulk: attach (or detach) a group to EVERY product in a category, in one click.
+  app.post("/admin/modifier-groups/:id/apply-category", admin, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = z
+      .object({ categoryId: z.string().min(1), mode: z.enum(["add", "remove"]).default("add") })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Invalid input" });
+    const prods = await prisma.product.findMany({
+      where: { categoryId: parsed.data.categoryId },
+      select: { id: true },
+    });
+    if (parsed.data.mode === "remove") {
+      await prisma.productModifier.deleteMany({
+        where: { groupId: id, productId: { in: prods.map((p) => p.id) } },
+      });
+    } else {
+      await prisma.productModifier.createMany({
+        data: prods.map((p) => ({ productId: p.id, groupId: id })),
+        skipDuplicates: true,
+      });
+    }
+    return { count: prods.length, mode: parsed.data.mode };
+  });
+
   // Which groups a product currently has (for the product editor).
   app.get("/admin/products/:id/modifier-groups", admin, async (req) => {
     const { id } = req.params as { id: string };

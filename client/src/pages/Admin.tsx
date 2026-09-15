@@ -350,6 +350,11 @@ function Modifiers() {
     queryKey: ["modifier-groups"],
     queryFn: async () => (await api.get("/admin/modifier-groups")).data as { groups: ModGrp[] },
   });
+  const { data: catData } = useQuery({
+    queryKey: ["admin-categories"],
+    queryFn: async () => (await api.get("/admin/categories")).data as { categories: Cat[] },
+  });
+  const cats = catData?.categories ?? [];
   const groups = data?.groups ?? [];
   const [name, setName] = useState("");
   const [type, setType] = useState<"SINGLE" | "MULTI">("SINGLE");
@@ -380,16 +385,27 @@ function Modifiers() {
       </div>
 
       <div className="space-y-3">
-        {groups.map((g) => <GroupCard key={g.id} group={g} onChange={refresh} />)}
+        {groups.map((g) => <GroupCard key={g.id} group={g} cats={cats} onChange={refresh} />)}
         {groups.length === 0 && <p className="py-8 text-center text-slate-400">No option groups yet.</p>}
       </div>
     </>
   );
 }
 
-function GroupCard({ group, onChange }: { group: ModGrp; onChange: () => void }) {
+function GroupCard({ group, cats, onChange }: { group: ModGrp; cats: Cat[]; onChange: () => void }) {
   const [optName, setOptName] = useState("");
   const [optPrice, setOptPrice] = useState<number>(0);
+  const [catId, setCatId] = useState("");
+
+  async function applyCategory(mode: "add" | "remove") {
+    if (!catId) { toast.error("Pick a category"); return; }
+    try {
+      const { data } = await api.post(`/admin/modifier-groups/${group.id}/apply-category`, { categoryId: catId, mode });
+      const catName = cats.find((c) => c.id === catId)?.name ?? "category";
+      toast.success(`${mode === "add" ? "Added to" : "Removed from"} ${data.count} products in ${catName}`);
+      onChange();
+    } catch { toast.error("Could not apply to category"); }
+  }
 
   async function addOpt() {
     if (!optName.trim()) return;
@@ -430,6 +446,17 @@ function GroupCard({ group, onChange }: { group: ModGrp; onChange: () => void })
         <input value={optName} onChange={(e) => setOptName(e.target.value)} placeholder="Option (e.g. Large)" className="flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
         <input type="number" value={optPrice || ""} onChange={(e) => setOptPrice(Number(e.target.value))} placeholder="+₹0" className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
         <button className="btn-ghost ring-1 ring-slate-200" onClick={addOpt}><Plus className="h-4 w-4" /></button>
+      </div>
+
+      {/* Bulk-apply this group to every product in a category */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+        <span className="text-xs font-semibold text-slate-500">Apply to a whole category:</span>
+        <select value={catId} onChange={(e) => setCatId(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+          <option value="">Choose category…</option>
+          {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+        </select>
+        <button onClick={() => applyCategory("add")} className="rounded-lg bg-brand-100 px-3 py-1.5 text-xs font-semibold text-brand-700">Add to all</button>
+        <button onClick={() => applyCategory("remove")} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">Remove from all</button>
       </div>
     </div>
   );
