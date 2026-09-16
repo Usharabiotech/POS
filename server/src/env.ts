@@ -33,4 +33,13 @@ export const env = {
   razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? "",
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? "",
   publicDir: process.env.PUBLIC_DIR, // set in single-container prod to serve the SPA
+  // External Fruitified Loyalty service. Both blank → loyalty integration is OFF
+  // (no earning, no outbox flushing) so the POS runs standalone as before.
+  loyaltyUrl: process.env.LOYALTY_URL ?? "",
+  loyaltyApiKey: process.env.LOYALTY_API_KEY ?? "",
+  // Which till this instance is, for the loyalty event `source` (e.g. cafepos-till-1).
+  tillId: process.env.TILL_ID ?? "1",
 };
+
+/** Loyalty integration is active only when a URL and key are both configured. */
+export const loyaltyEnabled = !!(env.loyaltyUrl && env.loyaltyApiKey);

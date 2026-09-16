@@ -17,6 +17,7 @@ import {
   WifiOff,
   Clock,
   RefreshCw,
+  Gift,
   X,
 } from "lucide-react";
 import clsx from "clsx";
@@ -64,6 +65,13 @@ export default function POS() {
   const [discount, setDiscount] = useState(0);
   const [custName, setCustName] = useState("");
   const [phone, setPhone] = useState("");
+  // An applied loyalty redemption (reward or points), already spent on the loyalty side.
+  // Its rupee value folds into the cart discount; voided if removed/cart cleared.
+  const [redemption, setRedemption] = useState<{
+    ref: string;
+    discount: number;
+    description: string;
+  } | null>(null);
   const [showPay, setShowPay] = useState(false);
   const [showPending, setShowPending] = useState(false);
   const [showSync, setShowSync] = useState(false);
@@ -73,7 +81,12 @@ export default function POS() {
   const { data: config } = useQuery({
     queryKey: ["config"],
     queryFn: async () =>
-      (await api.get("/config")).data as { storeName: string; taxRate: number; upiVpa?: string },
+      (await api.get("/config")).data as {
+        storeName: string;
+        taxRate: number;
+        upiVpa?: string;
+        loyaltyEnabled?: boolean;
+      },
   });
   const taxRate = config?.taxRate ?? 0.05;
 
@@ -139,18 +152,48 @@ export default function POS() {
   function removeLine(key: string) {
     setCart((c) => c.filter((l) => l.key !== key));
   }
+  // Reset for the next sale. Redemption is dropped WITHOUT voiding — a completed sale has
+  // already consumed it (voiding would hand the reward back).
   function clearCart() {
     setCart([]);
     setDiscount(0);
     setPhone("");
     setCustName("");
+    setRedemption(null);
+  }
+  // Give a still-applied reward back (cashier hit Clear, or removed it) then reset.
+  async function voidRedemption() {
+    const r = redemption;
+    setRedemption(null);
+    if (r) {
+      try {
+        await api.post("/loyalty/void", { ref: r.ref });
+      } catch {
+        /* best-effort — the reservation expires on the loyalty side anyway */
+      }
+    }
+  }
+  async function clearCartVoid() {
+    await voidRedemption();
+    clearCart();
   }
 
   const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0);
-  const disc = Math.min(discount, subtotal);
+  const manualDisc = Math.min(discount, subtotal);
+  const loyaltyDisc = redemption?.discount ?? 0;
+  const disc = Math.min(manualDisc + loyaltyDisc, subtotal);
   const tax = Math.round((subtotal - disc) * taxRate * 100) / 100;
   const total = Math.round((subtotal - disc + tax) * 100) / 100;
   const hasPrepared = cart.some((l) => l.product.kind === "PREPARED");
+  // Amount (paise) the reward is quoted/redeemed against: subtotal minus any manual discount.
+  const loyaltyBasePaise = Math.round((subtotal - manualDisc) * 100);
+  const loyaltyItems = cart.map((l) => ({
+    productId: l.product.id,
+    name: l.product.name,
+    qty: l.qty,
+    unitPrice: Math.round(l.unitPrice * 100),
+  }));
+  const loyaltyOn = !!config?.loyaltyEnabled && online && /^\d{10}$/.test(phone) && cart.length > 0;
 
   return (
     <div className="flex h-full flex-col">
@@ -332,7 +375,7 @@ export default function POS() {
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <h2 className="font-bold">Current order</h2>
             {cart.length > 0 && (
-              <button onClick={clearCart} className="text-sm text-slate-400 hover:text-red-500">
+              <button onClick={clearCartVoid} className="text-sm text-slate-400 hover:text-red-500">
                 Clear
               </button>
             )}
@@ -391,6 +434,12 @@ export default function POS() {
                 placeholder="0"
               />
             </div>
+            {loyaltyDisc > 0 && (
+              <div className="mb-2 flex items-center justify-between text-sm text-brand-700">
+                <span>Loyalty reward</span>
+                <span className="font-semibold">−{money(loyaltyDisc)}</span>
+              </div>
+            )}
             <div className="mb-2 flex items-center justify-between text-sm">
               <span className="text-slate-500">Tax ({Math.round(taxRate * 100)}%)</span>
               <span className="font-semibold">{money(tax)}</span>
@@ -410,6 +459,16 @@ export default function POS() {
                 className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
               />
             </div>
+            {config?.loyaltyEnabled && (loyaltyOn || redemption) && (
+              <LoyaltyPanel
+                phone={phone}
+                amountPaise={loyaltyBasePaise}
+                items={loyaltyItems}
+                redemption={redemption}
+                onApply={setRedemption}
+                onRemove={voidRedemption}
+              />
+            )}
             <div className="mb-3 flex items-center justify-between text-lg">
               <span className="font-bold">Total</span>
               <span className="font-extrabold text-brand-700">{money(total)}</span>
@@ -655,6 +714,127 @@ function OnlineOrderAlert({
       <button onClick={onDismiss} className="rounded-lg p-1.5 hover:bg-white/20" aria-label="Dismiss">
         <X className="h-5 w-5" />
       </button>
+    </div>
+  );
+}
+
+interface QuoteOption {
+  apply: { issuedRewardId: string } | { pointsToRedeem: number };
+  label: string;
+  discountAmount: number;
+  unavailableReason: string | null;
+}
+interface LoyaltySnapshot {
+  name: string | null;
+  pointsBalance: number;
+  pointsValue: number;
+  tier: { name: string } | null;
+}
+
+/**
+ * Loyalty at the till. Looks up the customer by phone and offers what they can redeem
+ * against this cart (rewards + points), pulled live from the loyalty service. Applying an
+ * option spends it there and returns a rupee discount that folds into the bill. Online-only
+ * — if loyalty is unreachable the panel simply shows nothing and the sale proceeds.
+ */
+function LoyaltyPanel({
+  phone,
+  amountPaise,
+  items,
+  redemption,
+  onApply,
+  onRemove,
+}: {
+  phone: string;
+  amountPaise: number;
+  items: { productId: string; name: string; qty: number; unitPrice: number }[];
+  redemption: { ref: string; discount: number; description: string } | null;
+  onApply: (r: { ref: string; discount: number; description: string }) => void;
+  onRemove: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const { data } = useQuery({
+    queryKey: ["loyalty", phone, amountPaise],
+    enabled: !redemption, // stop polling once a reward is locked in
+    staleTime: 5000,
+    queryFn: async () => {
+      const [snap, quote] = await Promise.all([
+        api.get(`/loyalty/customer/${encodeURIComponent(phone)}`).then((r) => r.data.customer as LoyaltySnapshot | null).catch(() => null),
+        api.post("/loyalty/quote", { phone, amount: amountPaise, items }).then((r) => r.data as { options: QuoteOption[] }).catch(() => null),
+      ]);
+      return { snap, options: quote?.options ?? [] };
+    },
+  });
+
+  async function apply(opt: QuoteOption) {
+    setBusy(true);
+    const ref = crypto.randomUUID();
+    try {
+      const r = (await api.post("/loyalty/redeem", { ref, phone, amount: amountPaise, items, apply: opt.apply })).data;
+      onApply({ ref, discount: r.discountAmount / 100, description: r.description });
+      toast.success(r.description || "Reward applied");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Could not apply reward");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (redemption) {
+    return (
+      <div className="mb-3 flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2 ring-1 ring-brand-200">
+        <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-brand-700">
+          <Gift className="h-4 w-4 shrink-0" />
+          <span className="truncate">{redemption.description}</span>
+        </span>
+        <button onClick={onRemove} className="shrink-0 text-xs font-semibold text-slate-400 hover:text-red-500">
+          Remove
+        </button>
+      </div>
+    );
+  }
+
+  const snap = data?.snap;
+  const options = data?.options ?? [];
+  if (!snap && options.length === 0) return null; // unknown customer / nothing to offer
+
+  return (
+    <div className="mb-3 rounded-xl bg-brand-50 p-3 ring-1 ring-brand-200">
+      <div className="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-brand-700">
+        <Gift className="h-4 w-4" />
+        {snap?.name ?? "Member"}
+        {snap && (
+          <span className="ml-auto text-xs font-semibold text-brand-600">
+            {snap.pointsBalance} pts · {money(snap.pointsValue / 100)}
+            {snap.tier ? ` · ${snap.tier.name}` : ""}
+          </span>
+        )}
+      </div>
+      {options.length === 0 ? (
+        <p className="text-xs text-slate-500">No rewards to use on this order yet.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {options.map((o, i) => (
+            <button
+              key={i}
+              disabled={busy || !!o.unavailableReason}
+              onClick={() => apply(o)}
+              title={o.unavailableReason ?? undefined}
+              className={clsx(
+                "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm ring-1 transition",
+                o.unavailableReason
+                  ? "bg-slate-50 text-slate-400 ring-slate-200"
+                  : "bg-white font-semibold text-slate-700 ring-brand-200 hover:bg-brand-100 active:scale-[.99]"
+              )}
+            >
+              <span className="truncate">{o.label}</span>
+              {!o.unavailableReason && (
+                <span className="ml-2 shrink-0 font-bold text-brand-700">−{money(o.discountAmount / 100)}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

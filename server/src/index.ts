@@ -16,7 +16,10 @@ import { inventoryRoutes } from "./routes/inventory.js";
 import { eodRoutes } from "./routes/eod.js";
 import { modifierRoutes } from "./routes/modifiers.js";
 import { storeRoutes } from "./routes/stores.js";
+import { loyaltyRoutes } from "./routes/loyalty.js";
 import { backfillStore } from "./services/store.js";
+import { startOutboxFlusher } from "./services/loyaltyOutbox.js";
+import { loyaltyEnabled } from "./env.js";
 import { prisma } from "./db.js";
 
 const app = Fastify({
@@ -54,6 +57,7 @@ app.get("/api/config", async () => ({
   currency: env.currency,
   kioskPin: env.kioskPin,
   upiVpa: env.upiVpa,
+  loyaltyEnabled,
 }));
 
 await app.register(authRoutes, { prefix: "/api/auth" });
@@ -69,6 +73,7 @@ await app.register(inventoryRoutes, { prefix: "/api" });
 await app.register(eodRoutes, { prefix: "/api" });
 await app.register(modifierRoutes, { prefix: "/api" });
 await app.register(storeRoutes, { prefix: "/api" });
+await app.register(loyaltyRoutes, { prefix: "/api" });
 
 // Single-container production: serve the built SPA from the same process (cheap hosting).
 if (env.publicDir) {
@@ -80,7 +85,10 @@ if (env.publicDir) {
   });
 }
 
+let stopFlusher: () => void = () => {};
+
 const shutdown = async () => {
+  stopFlusher();
   await app.close();
   await prisma.$disconnect();
   process.exit(0);
@@ -110,6 +118,8 @@ if (env.nodeEnv === "production") {
 try {
   await app.listen({ port: env.port, host: env.host });
   app.log.info(`CafePOS API on http://${env.host}:${env.port}`);
+  // Deliver any queued loyalty earns and keep retrying on a timer (no-op if loyalty off).
+  stopFlusher = startOutboxFlusher(app.log);
 } catch (err) {
   app.log.error(err);
   process.exit(1);

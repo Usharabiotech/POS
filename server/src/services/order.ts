@@ -1,7 +1,11 @@
 import type { OrderSource, PaymentMethod } from "@prisma/client";
 import { prisma } from "../db.js";
-import { env } from "../env.js";
+import { env, loyaltyEnabled } from "../env.js";
 import { getDefaultStoreId } from "./store.js";
+import { enqueuePurchaseEvent, kickFlush } from "./loyaltyOutbox.js";
+
+/** CafePOS stores money as rupees (Float); the loyalty API speaks integer paise. */
+const toPaise = (rupees: number) => Math.round(rupees * 100);
 
 export interface CreateOrderItem {
   productId: string;
@@ -119,7 +123,11 @@ export async function createOrder(input: CreateOrderInput) {
   const wholeOrderToKitchen = input.source !== "POS"; // kiosk + online → pack everything
 
   const ids = [...new Set(input.items.map((i) => i.productId))];
-  const products = await prisma.product.findMany({ where: { id: { in: ids } }, include: PRODUCT_INCLUDE });
+  const products = await prisma.product.findMany({
+    where: { id: { in: ids } },
+    // category is included so loyalty events can carry it (category-scoped programs need it).
+    include: { ...PRODUCT_INCLUDE, category: { select: { name: true } } },
+  });
   const byId = new Map(products.map((p) => [p.id, p]));
 
   for (const item of input.items) {
@@ -199,17 +207,15 @@ export async function createOrder(input: CreateOrderInput) {
   // Unpaid orders wait for payment and do NOT reach the kitchen.
   const status = !paid ? "AWAITING_PAYMENT" : anyPending ? "PREPARING" : "COMPLETED";
 
-  // Customer + loyalty. Always link the customer; award visits/points only once paid.
+  // Customer link only. The external Fruitified Loyalty service is now the source of
+  // truth for points/visits/rewards — it is fed by the durable outbox event enqueued
+  // below (on paid orders), so the POS no longer computes loyalty itself.
   let customerId: string | undefined;
   if (input.customerPhone) {
-    const points = paid ? Math.floor(total / 10) : 0;
     const customer = await prisma.customer.upsert({
       where: { phone: input.customerPhone },
-      update: {
-        ...(paid ? { visits: { increment: 1 }, points: { increment: points } } : {}),
-        ...(input.customerName ? { name: input.customerName } : {}),
-      },
-      create: { phone: input.customerPhone, name: input.customerName, visits: paid ? 1 : 0, points },
+      update: { ...(input.customerName ? { name: input.customerName } : {}) },
+      create: { phone: input.customerPhone, name: input.customerName },
     });
     customerId = customer.id;
   }
@@ -251,9 +257,30 @@ export async function createOrder(input: CreateOrderInput) {
         }
       }
     }
+
+    // Durable loyalty earn: queue the purchase event in the SAME transaction as the order
+    // so it can never be lost, then let the flusher deliver it (idempotent on orderId).
+    // Only paid, phone-identified sales earn; anonymous walk-ins are skipped.
+    if (paid && loyaltyEnabled && input.customerPhone) {
+      await enqueuePurchaseEvent(tx, {
+        orderId: created.id,
+        phone: input.customerPhone,
+        name: input.customerName,
+        amount: toPaise(total),
+        items: lines.map((l) => ({
+          productId: l.productId,
+          name: l.name,
+          qty: l.qty,
+          unitPrice: toPaise(l.unitPrice),
+          category: byId.get(l.productId)?.category?.name,
+        })),
+        occurredAt: created.createdAt.toISOString(),
+      });
+    }
     return created;
   });
 
+  if (paid && input.customerPhone) kickFlush();
   return { order, change };
 }
 
@@ -263,8 +290,11 @@ export async function createOrder(input: CreateOrderInput) {
  * loyalty, and flips the order into the kitchen. Idempotent.
  */
 export async function settleOrder(orderId: string, method: PaymentMethod) {
-  return prisma.$transaction(async (tx) => {
-    const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+  const result = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      include: { items: true, customer: true },
+    });
     if (!order) throw new OrderError(404, "Order not found");
     if (order.paid) {
       return tx.order.findUnique({
@@ -298,18 +328,40 @@ export async function settleOrder(orderId: string, method: PaymentMethod) {
       }
     }
 
-    if (order.customerId) {
-      await tx.customer.update({
-        where: { id: order.customerId },
-        data: { visits: { increment: 1 }, points: { increment: Math.floor(order.total / 10) } },
-      });
-    }
-
     const anyPending = order.items.some((i) => i.kdsStatus !== "COMPLETED");
-    return tx.order.update({
+    const updated = await tx.order.update({
       where: { id: orderId },
       data: { paid: true, tender: method, status: anyPending ? "PREPARING" : "COMPLETED" },
       include: { items: true, payment: true, customer: true },
     });
+
+    // Durable loyalty earn now that payment has landed (external service owns points).
+    // Order-item snapshots don't carry category, so look it up for category-scoped programs.
+    if (loyaltyEnabled && updated.customer?.phone) {
+      const cats = await tx.product.findMany({
+        where: { id: { in: [...new Set(order.items.map((i) => i.productId))] } },
+        select: { id: true, category: { select: { name: true } } },
+      });
+      const catById = new Map(cats.map((c) => [c.id, c.category?.name]));
+      await enqueuePurchaseEvent(tx, {
+        orderId: updated.id,
+        phone: updated.customer.phone,
+        name: updated.customer.name ?? updated.customerName ?? undefined,
+        amount: toPaise(updated.total),
+        items: order.items.map((i) => ({
+          productId: i.productId,
+          name: i.name,
+          qty: i.qty,
+          unitPrice: toPaise(i.unitPrice),
+          category: catById.get(i.productId),
+        })),
+        occurredAt: new Date().toISOString(),
+      });
+    }
+
+    return updated;
   });
+
+  kickFlush();
+  return result;
 }

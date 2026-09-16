@@ -262,3 +262,29 @@ model Payment {
   change   Float         @default(0)
   paidAt   DateTime      @default(now())
 }
+
+enum LoyaltyOutboxStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+/// Durable outbox for loyalty "purchase" events sent to the external Fruitified Loyalty
+/// service. A paid order enqueues one row INSIDE the same transaction that creates/settles
+/// it, so a crash or a loyalty outage never loses an earn. A background flusher POSTs
+/// PENDING rows to /api/integration/events/purchase (idempotent on orderId) and marks them
+/// SENT. The loyalty service — not this POS — is the source of truth for points/rewards.
+model LoyaltyOutbox {
+  id        String              @id @default(cuid())
+  /// POS order id = the loyalty API's idempotency key. One event per order.
+  orderId   String              @unique
+  /// Exact recordPurchase() input to replay (JSON-safe: occurredAt is an ISO string).
+  payload   Json
+  status    LoyaltyOutboxStatus @default(PENDING)
+  attempts  Int                 @default(0)
+  lastError String?
+  createdAt DateTime            @default(now())
+  sentAt    DateTime?
+
+  @@index([status])
+}
