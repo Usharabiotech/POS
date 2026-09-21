@@ -29,6 +29,7 @@ import { unlockAudio } from "../lib/sound";
 import { useOnlineOrders, type OnlineOrder } from "../lib/useOnlineOrders";
 import { payWithRazorpay, PaymentCancelled } from "../lib/razorpay";
 import { ProductConfig, type ConfiguredItem } from "../components/ProductConfig";
+import { LotusMark } from "../components/BrandLogo";
 
 interface CartLine {
   /** Unique per product + option selection, so differently-configured lines don't merge. */
@@ -209,8 +210,8 @@ export default function POS() {
       {/* Top bar */}
       <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5">
         <div className="flex items-center gap-2 font-bold">
-          <span className="text-2xl">🍓</span>
-          <span>{config?.storeName ?? "CafePOS"}</span>
+          <LotusMark size={26} />
+          <span>{config?.storeName ?? "Fruitified"}</span>
         </div>
         <div className="relative max-w-md flex-1">
           <Search className="pointer-events-none absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
@@ -498,7 +499,7 @@ export default function POS() {
           cart={cart}
           phone={phone}
           custName={custName}
-          storeName={config?.storeName ?? "CafePOS"}
+          storeName={config?.storeName ?? "Fruitified"}
           canPayOnline={canPayOnline}
           demoMode={!!payCfg?.mock}
           online={online}

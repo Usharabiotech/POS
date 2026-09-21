@@ -61,6 +61,54 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+// ── Password strength ─────────────────────────────────────────────────────────
+// The repo is public, so the seeded defaults (admin123 / cashier123) are known to
+// anyone. Block those and the usual breach-list passwords so a real deployment can
+// never keep a guessable login. Shared so the client can validate before submit and
+// the server can enforce it as the source of truth.
+const WEAK_PASSWORDS = new Set(
+  [
+    "admin123",
+    "cashier123",
+    "password",
+    "password1",
+    "password123",
+    "12345678",
+    "123456789",
+    "1234567890",
+    "qwerty123",
+    "admin@123",
+    "welcome1",
+    "changeme",
+    "letmein1",
+    "iloveyou",
+    "abcd1234",
+    "kamala123",
+  ].map((p) => p.toLowerCase())
+);
+
+/** Returns an error message if the password is too weak, else null. */
+export function passwordProblem(password: string): string | null {
+  const p = password ?? "";
+  if (p.length < 8) return "Use at least 8 characters.";
+  if (!/[a-zA-Z]/.test(p)) return "Add at least one letter.";
+  if (!/[0-9]/.test(p)) return "Add at least one number.";
+  if (WEAK_PASSWORDS.has(p.toLowerCase())) return "That password is too common — pick a unique one.";
+  if (/^(.)\1+$/.test(p)) return "Don't repeat a single character.";
+  return null;
+}
+
+/** Zod field for any password a user sets (creation / reset / change). */
+export const strongPasswordSchema = z
+  .string()
+  .refine((p) => passwordProblem(p) === null, (p) => ({ message: passwordProblem(p) ?? "Weak password" }));
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: strongPasswordSchema,
+});
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
 export const cartItemSchema = z.object({
   productId: z.string().min(1),
   qty: z.number().int().positive(),

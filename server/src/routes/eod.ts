@@ -3,25 +3,12 @@ import { prisma } from "../db.js";
 import { env } from "../env.js";
 import { requireAuth, requireRole } from "../auth.js";
 import { getDefaultStoreId } from "../services/store.js";
+import { storeDayLabel, storeDayBounds, storeHour } from "../lib/day.js";
 
-/** Local YYYY-MM-DD for a date. */
-function localDay(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
-}
-function dayBounds(dateStr: string) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const start = new Date(y!, (m ?? 1) - 1, d ?? 1);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { start, end };
-}
-
-/** Compute the aggregate for a local day from its paid, non-cancelled orders.
+/** Compute the aggregate for a store-local day from its paid, non-cancelled orders.
  *  Pass a storeId for a per-branch summary; omit for cumulative (all stores). */
 async function computeDay(dateStr: string, storeId?: string) {
-  const { start, end } = dayBounds(dateStr);
+  const { start, end } = storeDayBounds(dateStr);
   const orders = await prisma.order.findMany({
     where: {
       createdAt: { gte: start, lt: end },
@@ -40,7 +27,7 @@ async function computeDay(dateStr: string, storeId?: string) {
     tax += o.tax;
     discount += o.discount;
     if (o.payment) byMethod[o.payment.method] = (byMethod[o.payment.method] ?? 0) + o.total;
-    hourly[new Date(o.createdAt).getHours()] += o.total;
+    hourly[storeHour(o.createdAt)] += o.total;
     for (const it of o.items) {
       const e = itemMap[it.productId] ?? { name: it.name, qty: 0, revenue: 0 };
       e.qty += it.qty;
@@ -82,11 +69,12 @@ export async function eodRoutes(app: FastifyInstance) {
   // Everything the client needs to build the day's downloadable ZIP (report + invoices + CSV).
   app.get("/eod/data", { preHandler: [requireAuth, requireRole("ADMIN")] }, async (req) => {
     const { date } = req.query as { date?: string };
-    const dateStr = date ?? localDay(new Date());
-    const { start, end } = dayBounds(dateStr);
+    const { start, end, label: dateStr } = storeDayBounds(date);
     const summary = await computeDay(dateStr);
+    // Only paid, non-cancelled orders — so the invoice PDFs + CSV reconcile exactly
+    // with the summary totals (abandoned/awaiting orders are not part of the record).
     const orders = await prisma.order.findMany({
-      where: { createdAt: { gte: start, lt: end } },
+      where: { createdAt: { gte: start, lt: end }, paid: true, status: { not: "CANCELLED" } },
       orderBy: { number: "asc" },
       include: { items: true, payment: true, customer: true, cashier: { select: { name: true } } },
     });
@@ -97,7 +85,7 @@ export async function eodRoutes(app: FastifyInstance) {
   // the window. Summaries are saved per branch so reports can be cumulative or per-store.
   app.post("/eod/close", { preHandler: [requireAuth, requireRole("ADMIN")] }, async (req) => {
     const { date } = req.query as { date?: string };
-    const dateStr = date ?? localDay(new Date());
+    const { label: dateStr } = storeDayBounds(date);
 
     const stores = await prisma.store.findMany({ select: { id: true } });
     const storeIds = stores.length ? stores.map((s) => s.id) : [await getDefaultStoreId()];
@@ -113,7 +101,7 @@ export async function eodRoutes(app: FastifyInstance) {
       where: { createdAt: { lt: cutoff } },
       select: { createdAt: true },
     });
-    const oldDays = [...new Set(old.map((o) => localDay(new Date(o.createdAt))))];
+    const oldDays = [...new Set(old.map((o) => storeDayLabel(new Date(o.createdAt))))];
     const have = new Set(
       (await prisma.dailySummary.findMany({
         where: { date: { in: oldDays } },

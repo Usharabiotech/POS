@@ -37,7 +37,7 @@ export function Receipt({
     <div className="receipt-print font-mono text-[12px] leading-tight text-black">
       <div className="text-center">
         <div className="text-base font-bold">{storeName}</div>
-        <div>Fresh Fruit Cafe</div>
+        <div>by Kamala</div>
         <div className="my-1 border-t border-dashed border-black" />
       </div>
 

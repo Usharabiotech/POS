@@ -11,6 +11,7 @@ import KDS from "./pages/KDS";
 import Reports from "./pages/Reports";
 import Admin from "./pages/Admin";
 import Kiosk from "./pages/Kiosk";
+import { EodScheduler } from "./components/EodScheduler";
 
 const qc = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
@@ -33,6 +34,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/kiosk" element={<RequireAuth><Kiosk /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <EodScheduler />
       </BrowserRouter>
       <Toaster richColors position="top-center" />
     </QueryClientProvider>

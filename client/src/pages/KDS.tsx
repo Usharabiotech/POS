@@ -225,8 +225,8 @@ export default function KDS() {
             </div>
             <p className="mb-3 text-sm text-slate-500">
               {clearAll
-                ? "Enter the admin password to clear every ticket on the display."
-                : "Enter the admin password to clear this ticket."}
+                ? "Enter the kitchen PIN or an admin password to clear every ticket."
+                : "Enter the kitchen PIN or an admin password to clear this ticket."}
             </p>
             <input
               type="password"
@@ -234,10 +234,10 @@ export default function KDS() {
               value={pw}
               onChange={(e) => { setPw(e.target.value); setPwErr(false); }}
               onKeyDown={(e) => { if (e.key === "Enter") confirmClear(); }}
-              placeholder="Admin password"
+              placeholder="Kitchen PIN or admin password"
               className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-center outline-none focus:border-brand-500"
             />
-            {pwErr && <p className="mt-2 text-sm font-semibold text-red-500">Wrong admin password</p>}
+            {pwErr && <p className="mt-2 text-sm font-semibold text-red-500">Wrong PIN / password</p>}
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button onClick={() => setClearing(null)} className="btn-ghost py-2.5 ring-1 ring-slate-200">Cancel</button>
               <button onClick={confirmClear} disabled={pwBusy || !pw} className="btn-primary py-2.5">

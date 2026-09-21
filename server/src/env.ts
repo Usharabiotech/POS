@@ -16,7 +16,10 @@ export const env = {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
-  storeName: process.env.STORE_NAME ?? "Fresh Fruit Cafe",
+  storeName: process.env.STORE_NAME ?? "Fruitified",
+  // Business day boundary offset in minutes from UTC (IST = 330). Reports and EOD
+  // group sales by this timezone, so day-close is correct on a UTC cloud host.
+  tzOffsetMinutes: Number(process.env.TZ_OFFSET_MINUTES ?? 330),
   taxRate: Number(process.env.TAX_RATE ?? 0.05),
   currency: process.env.CURRENCY ?? "INR",
   // PIN a manager/cashier enters to unlock the kiosk menu (exit / windowed).

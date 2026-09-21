@@ -3,6 +3,7 @@ import { prisma } from "../db.js";
 import { env, loyaltyEnabled } from "../env.js";
 import { getDefaultStoreId } from "./store.js";
 import { enqueuePurchaseEvent, kickFlush } from "./loyaltyOutbox.js";
+import { computeTotals, changeFor } from "./pricing.js";
 
 /** CafePOS stores money as rupees (Float); the loyalty API speaks integer paise. */
 const toPaise = (rupees: number) => Math.round(rupees * 100);
@@ -104,11 +105,8 @@ export async function quoteOrder(items: CreateOrderItem[], discountInput = 0) {
     const { delta } = resolveOptions(p, item.optionIds);
     subtotal += (p.price + delta) * item.qty;
   }
-  const discount = Math.min(discountInput, subtotal);
-  const taxable = subtotal - discount;
-  const tax = Math.round(taxable * env.taxRate * 100) / 100;
-  const total = Math.round((taxable + tax) * 100) / 100;
-  return { subtotal, discount, tax, total, amountPaise: Math.round(total * 100) };
+  const { discount, tax, total, amountPaise } = computeTotals(subtotal, discountInput, env.taxRate);
+  return { subtotal, discount, tax, total, amountPaise };
 }
 
 const ONLINE: OrderSource[] = ["SWIGGY", "ZOMATO"];
@@ -175,10 +173,7 @@ export async function createOrder(input: CreateOrderInput) {
     };
   });
 
-  const discount = Math.min(input.discount ?? 0, subtotal);
-  const taxable = subtotal - discount;
-  const tax = Math.round(taxable * env.taxRate * 100) / 100;
-  const total = Math.round((taxable + tax) * 100) / 100;
+  const { discount, tax, total } = computeTotals(subtotal, input.discount ?? 0, env.taxRate);
 
   const anyPending = lines.some((l) => l.kdsStatus === "PENDING");
 
@@ -196,7 +191,7 @@ export async function createOrder(input: CreateOrderInput) {
     if (method === "CASH" && tendered < total) {
       throw new OrderError(400, "Cash tendered is less than total");
     }
-    change = method === "CASH" ? Math.round((tendered - total) * 100) / 100 : 0;
+    change = method === "CASH" ? changeFor(total, tendered) : 0;
     paymentData = { method, amount: total, tendered, change };
     paid = true;
   } else if (!input.awaitPayment && input.prepaidOnline) {

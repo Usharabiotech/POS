@@ -4,6 +4,18 @@ import bcrypt from "bcryptjs";
 import { kdsUpdateSchema } from "@cafepos/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../auth.js";
+import { env } from "../env.js";
+
+// Clearing a KDS ticket only marks its kitchen lines COMPLETED (no sales/data impact),
+// so kitchen staff may authorize it with the staff kiosk PIN OR any admin password.
+async function canClear(password: string): Promise<boolean> {
+  if (env.kioskPin && password === env.kioskPin) return true;
+  const admins = await prisma.user.findMany({ where: { role: "ADMIN", active: true } });
+  for (const a of admins) {
+    if (await bcrypt.compare(password, a.passwordHash)) return true;
+  }
+  return false;
+}
 
 export async function kdsRoutes(app: FastifyInstance) {
   // Active kitchen tickets: any line not yet COMPLETED, grouped by order.
@@ -52,12 +64,9 @@ export async function kdsRoutes(app: FastifyInstance) {
     const parsed = z.object({ password: z.string().min(1) }).safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "Password required" });
 
-    const admins = await prisma.user.findMany({ where: { role: "ADMIN", active: true } });
-    let ok = false;
-    for (const a of admins) {
-      if (await bcrypt.compare(parsed.data.password, a.passwordHash)) { ok = true; break; }
+    if (!(await canClear(parsed.data.password))) {
+      return reply.code(403).send({ error: "Wrong PIN / password" });
     }
-    if (!ok) return reply.code(403).send({ error: "Wrong admin password" });
 
     const order = await prisma.order.findUnique({ where: { id } });
     if (!order) return reply.code(404).send({ error: "Order not found" });
@@ -75,12 +84,9 @@ export async function kdsRoutes(app: FastifyInstance) {
     const parsed = z.object({ password: z.string().min(1) }).safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "Password required" });
 
-    const admins = await prisma.user.findMany({ where: { role: "ADMIN", active: true } });
-    let ok = false;
-    for (const a of admins) {
-      if (await bcrypt.compare(parsed.data.password, a.passwordHash)) { ok = true; break; }
+    if (!(await canClear(parsed.data.password))) {
+      return reply.code(403).send({ error: "Wrong PIN / password" });
     }
-    if (!ok) return reply.code(403).send({ error: "Wrong admin password" });
 
     const items = await prisma.orderItem.findMany({
       where: { kdsStatus: { not: "COMPLETED" }, order: { is: { paid: true } } },

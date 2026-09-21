@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Minus, Pencil, X, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Minus, Pencil, X, Trash2, KeyRound, ShieldAlert } from "lucide-react";
 import clsx from "clsx";
 import { api, getUser } from "../api";
+import { passwordProblem } from "../lib/password";
 
 const money = (n: number) => "₹" + n.toFixed(2);
 
@@ -740,8 +741,11 @@ function Kpi({ label, value, sub, warn }: { label: string; value: string; sub: s
 // ── Staff ─────────────────────────────────────────────────────────────────
 function StaffTab() {
   const qc = useQueryClient();
+  const me = getUser();
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ username: "", name: "", password: "", role: "CASHIER" });
+  const [changeMine, setChangeMine] = useState(false);
+  const [resetFor, setResetFor] = useState<Staff | null>(null);
 
   const { data } = useQuery({
     queryKey: ["admin-users"],
@@ -754,7 +758,10 @@ function StaffTab() {
     onError: (e: any) => toast.error(e?.response?.data?.error ?? "Failed"),
   });
 
+  const formPwProblem = form.password ? passwordProblem(form.password) : null;
+
   async function add() {
+    if (formPwProblem) return toast.error(formPwProblem);
     try {
       await api.post("/admin/users", form);
       toast.success("Staff added");
@@ -766,26 +773,52 @@ function StaffTab() {
     }
   }
 
+  // Default seeded logins are public (repo is open) — nudge to remove them.
+  const defaults = (data?.users ?? []).filter(
+    (u) => u.active && (u.username.toLowerCase() === "admin" || u.username.toLowerCase() === "cashier")
+  );
+
   return (
     <>
+      {defaults.length > 0 && (
+        <div className="mb-3 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div>
+            <p className="font-semibold">Default logins are still active.</p>
+            <p className="mt-0.5">
+              {defaults.map((u) => "@" + u.username).join(" and ")} ship with a publicly known
+              password. Create your own admin, then <b>reset their password or disable them</b> below.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm text-slate-500">{data?.users.length ?? 0} staff</p>
-        <button className="btn-primary" onClick={() => setAdding((v) => !v)}>
-          <Plus className="h-4 w-4" /> Add staff
-        </button>
+        <div className="flex gap-2">
+          <button className="btn-ghost" onClick={() => setChangeMine(true)}>
+            <KeyRound className="h-4 w-4" /> Change my password
+          </button>
+          <button className="btn-primary" onClick={() => setAdding((v) => !v)}>
+            <Plus className="h-4 w-4" /> Add staff
+          </button>
+        </div>
       </div>
 
       {adding && (
         <div className="card mb-3 grid gap-2 p-4 sm:grid-cols-4">
           <input placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="rounded-xl border border-slate-300 px-3 py-2" />
           <input placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-xl border border-slate-300 px-3 py-2" />
-          <input placeholder="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="rounded-xl border border-slate-300 px-3 py-2" />
+          <div>
+            <input placeholder="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+            {formPwProblem && <p className="mt-1 text-xs text-rose-600">{formPwProblem}</p>}
+          </div>
           <div className="flex gap-2">
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="flex-1 rounded-xl border border-slate-300 px-2 py-2">
               <option value="CASHIER">Cashier</option>
               <option value="ADMIN">Admin</option>
             </select>
-            <button className="btn-primary" onClick={add}>Save</button>
+            <button className="btn-primary" disabled={!!formPwProblem} onClick={add}>Save</button>
           </div>
         </div>
       )}
@@ -794,9 +827,19 @@ function StaffTab() {
         {(data?.users ?? []).map((u) => (
           <div key={u.id} className="flex items-center gap-3 px-3 py-2.5">
             <div className="flex-1">
-              <p className="font-semibold">{u.name}</p>
+              <p className="font-semibold">
+                {u.name}
+                {me?.id === u.id && <span className="ml-2 text-xs font-normal text-slate-400">(you)</span>}
+              </p>
               <p className="text-xs text-slate-500">@{u.username} · {u.role}</p>
             </div>
+            <button
+              onClick={() => setResetFor(u)}
+              className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              title="Reset password"
+            >
+              <KeyRound className="h-4 w-4" />
+            </button>
             <button
               onClick={() => toggle.mutate({ id: u.id, active: !u.active })}
               className={clsx(
@@ -809,6 +852,100 @@ function StaffTab() {
           </div>
         ))}
       </div>
+
+      {changeMine && <ChangeMyPasswordModal onClose={() => setChangeMine(false)} />}
+      {resetFor && (
+        <ResetPasswordModal
+          staff={resetFor}
+          onClose={() => setResetFor(null)}
+          onDone={() => qc.invalidateQueries({ queryKey: ["admin-users"] })}
+        />
+      )}
     </>
+  );
+}
+
+// Self-service password change — needs the current password.
+function ChangeMyPasswordModal({ onClose }: { onClose: () => void }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const problem = next ? passwordProblem(next) : null;
+
+  async function save() {
+    if (problem || !current) return;
+    setBusy(true);
+    try {
+      await api.post("/auth/change-password", { currentPassword: current, newPassword: next });
+      toast.success("Password changed");
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ModalShell title="Change my password" onClose={onClose}>
+      <input type="password" autoFocus placeholder="Current password" value={current} onChange={(e) => setCurrent(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+      <div>
+        <input type="password" placeholder="New password" value={next} onChange={(e) => setNext(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+        {problem && <p className="mt-1 text-xs text-rose-600">{problem}</p>}
+      </div>
+      <button className="btn-primary w-full justify-center" disabled={busy || !!problem || !current || !next} onClick={save}>
+        Update password
+      </button>
+    </ModalShell>
+  );
+}
+
+// Admin resets another staff member's password (no current password needed).
+function ResetPasswordModal({ staff, onClose, onDone }: { staff: Staff; onClose: () => void; onDone: () => void }) {
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const problem = next ? passwordProblem(next) : null;
+
+  async function save() {
+    if (problem) return;
+    setBusy(true);
+    try {
+      await api.patch(`/admin/users/${staff.id}`, { password: next });
+      toast.success(`Password reset for @${staff.username}`);
+      onDone();
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ModalShell title={`Reset password — @${staff.username}`} onClose={onClose}>
+      <div>
+        <input type="password" autoFocus placeholder="New password" value={next} onChange={(e) => setNext(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+        {problem && <p className="mt-1 text-xs text-rose-600">{problem}</p>}
+      </div>
+      <button className="btn-primary w-full justify-center" disabled={busy || !!problem || !next} onClick={save}>
+        Set new password
+      </button>
+    </ModalShell>
+  );
+}
+
+function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold">{title}</h3>
+          <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }

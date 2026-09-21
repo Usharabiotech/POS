@@ -1,0 +1,393 @@
+<style>
+  :root {
+    --ground: #f4f7f2;
+    --surface: #ffffff;
+    --surface-2: #eef3ea;
+    --ink: #16241b;
+    --muted: #56655b;
+    --faint: #859389;
+    --line: #dde7d8;
+    --line-strong: #cbd8c4;
+    --brand: #15703d;
+    --brand-strong: #0f5a30;
+    --brand-soft: #e2f2e7;
+    --amber: #b7791f;
+    --amber-soft: #fbeecd;
+    --shadow: 0 1px 2px rgba(22,36,27,.05), 0 8px 24px rgba(22,36,27,.06);
+    --track: #d5ded0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0f130e; --surface: #161c14; --surface-2: #1b2318; --ink: #e9f1e5;
+      --muted: #9dac9d; --faint: #71806c; --line: #26301f; --line-strong: #35422c;
+      --brand: #56cc84; --brand-strong: #74d99a; --brand-soft: #15331e;
+      --amber: #e9b458; --amber-soft: #33280f; --track: #333f2c;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.45);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #f4f7f2; --surface: #ffffff; --surface-2: #eef3ea; --ink: #16241b;
+    --muted: #56655b; --faint: #859389; --line: #dde7d8; --line-strong: #cbd8c4;
+    --brand: #15703d; --brand-strong: #0f5a30; --brand-soft: #e2f2e7;
+    --amber: #b7791f; --amber-soft: #fbeecd; --track: #d5ded0;
+    --shadow: 0 1px 2px rgba(22,36,27,.05), 0 8px 24px rgba(22,36,27,.06);
+  }
+  :root[data-theme="dark"] {
+    --ground: #0f130e; --surface: #161c14; --surface-2: #1b2318; --ink: #e9f1e5;
+    --muted: #9dac9d; --faint: #71806c; --line: #26301f; --line-strong: #35422c;
+    --brand: #56cc84; --brand-strong: #74d99a; --brand-soft: #15331e;
+    --amber: #e9b458; --amber-soft: #33280f; --track: #333f2c;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.45);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 40px 22px 90px; }
+
+  /* Toolbar */
+  .toolbar { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 18px; }
+  .btn { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-family: inherit;
+    font-weight: 650; font-size: 13.5px; padding: 9px 15px; border-radius: 11px; cursor: pointer; box-shadow: var(--shadow); }
+  .btn-primary { border: 0; background: var(--brand); color: #fff; }
+
+  /* Header */
+  header.top { margin-bottom: 30px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--brand);
+  }
+  .eyebrow::before { content: "🍓"; }
+  h1 { font-size: clamp(26px, 4vw, 38px); line-height: 1.08; margin: 12px 0 8px; letter-spacing: -.02em; text-wrap: balance; }
+  .sub { color: var(--muted); max-width: 66ch; margin: 0; font-size: 15.5px; }
+
+  /* Intro / callout cards */
+  .callout { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; box-shadow: var(--shadow); margin: 22px 0; }
+  .callout h3 { margin: 0 0 8px; font-size: 15px; }
+  .callout ol, .callout ul { margin: 6px 0 0; padding-left: 20px; color: var(--ink); font-size: 14.5px; }
+  .callout li { margin: 4px 0; }
+  .callout.brand { background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 30%, transparent); }
+
+  /* Sections */
+  section.grp { margin: 30px 0; }
+  .grp-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .grp-head .no { font-size: 13px; font-weight: 800; color: var(--brand); font-variant-numeric: tabular-nums; }
+  .grp-head h2 { font-size: 19px; margin: 0; letter-spacing: -.01em; }
+  .grp-head .rule { flex: 1; height: 1px; background: var(--line); }
+  .lede { color: var(--muted); font-size: 14.5px; margin: 0 0 14px; max-width: 70ch; }
+
+  /* Fields grid */
+  .profile { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+  .field { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow); }
+  .field label { display: flex; align-items: center; gap: 7px; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); font-weight: 700; margin-bottom: 6px; }
+  .field input, .field textarea { width: 100%; border: 0; background: transparent; color: var(--ink); font-size: 15px; font-family: inherit; outline: none; resize: vertical; }
+  .field input::placeholder, .field textarea::placeholder { color: var(--faint); }
+  .field.wide { grid-column: 1 / -1; }
+
+  /* Tags */
+  .tag { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+  .tag-req { background: var(--brand-soft); color: var(--brand-strong); }
+  .tag-opt { background: var(--surface-2); color: var(--muted); }
+  .tag-if  { background: transparent; color: var(--amber); border: 1px dashed color-mix(in srgb, var(--amber) 55%, transparent); }
+
+  /* Tables */
+  table.tbl { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); font-size: 14px; }
+  table.tbl th, table.tbl td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.tbl thead th { background: var(--surface-2); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+  table.tbl tr:last-child td { border-bottom: 0; }
+  table.tbl td.blank { height: 34px; color: var(--faint); }
+  .hint { color: var(--faint); }
+
+  /* Yes/No rows */
+  .qa { display: flex; flex-direction: column; gap: 8px; }
+  .qrow { display: flex; align-items: flex-start; gap: 14px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 12px 15px; box-shadow: var(--shadow); }
+  .qrow .q { flex: 1; min-width: 0; }
+  .qrow .q .name { font-weight: 650; font-size: 14.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .qrow .q .desc { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .yn { display: flex; gap: 6px; flex: none; }
+  .yn span { font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); }
+
+  .foot { margin-top: 40px; font-size: 12.5px; color: var(--faint); border-top: 1px solid var(--line); padding-top: 16px; }
+  .foot b { color: var(--muted); }
+
+  @media print {
+    .toolbar { display: none; }
+    body { background: #fff; }
+    .callout, .field, .qrow, table.tbl { box-shadow: none; }
+    section.grp, .qrow, table.tbl, .callout { break-inside: avoid; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="toolbar">
+    <button class="btn" onclick="toggleTheme()">Light / Dark</button>
+    <button class="btn btn-primary" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+
+  <header class="top">
+    <span class="eyebrow">Ayyan Industrial Solutions · Store Onboarding</span>
+    <h1>Store setup onboarding — what we need from you</h1>
+    <p class="sub">This form collects everything we need to set up your billing system and get you serving
+      customers. Fill in what you can, attach the files we ask for, and send it back — that is what starts your setup.</p>
+  </header>
+
+  <div class="callout">
+    <h3>How to fill it</h3>
+    <ul>
+      <li>Type your answers in the boxes, or print this and write them in — whatever is easier.</li>
+      <li>Items tagged <span class="tag tag-req">Required</span> are needed to go live. Everything else we can switch on later.</li>
+      <li>Send any files we ask for (logo, menu, photos) with your reply.</li>
+      <li>If something does not apply, just write <b>N/A</b> — there are no wrong answers.</li>
+    </ul>
+  </div>
+
+  <div class="callout brand">
+    <h3>What happens after you send it back</h3>
+    <ol>
+      <li>You return this form with your details and files.</li>
+      <li>We build your store — menu, prices, logins, receipt design (about <b>2–4 working days</b>).</li>
+      <li>We run a <b>30-minute training call</b> and hand it over.</li>
+      <li>You go live — and we stay on support.</li>
+    </ol>
+  </div>
+
+  <!-- 1. BUSINESS -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">01</span><h2>Business &amp; store details</h2><span class="rule"></span></div>
+    <p class="lede">The basics we need to identify your store and print it on bills.</p>
+    <div class="profile">
+      <div class="field"><label>Store display name <span class="tag tag-req">Required</span></label><input placeholder="as customers see it, e.g. Kamala Fruitified" /></div>
+      <div class="field"><label>Legal / registered name <span class="tag tag-opt">Optional</span></label><input placeholder="if different from above" /></div>
+      <div class="field wide"><label>Store address <span class="tag tag-req">Required</span></label><input placeholder="full address with pincode" /></div>
+      <div class="field"><label>Owner / contact person <span class="tag tag-req">Required</span></label><input placeholder="name" /></div>
+      <div class="field"><label>Contact phone <span class="tag tag-req">Required</span></label><input placeholder="10-digit number" /></div>
+      <div class="field"><label>Contact email <span class="tag tag-req">Required</span></label><input placeholder="name@email.com" /></div>
+      <div class="field"><label>Business hours <span class="tag tag-req">Required</span></label><input placeholder="e.g. 9:00 AM – 10:00 PM daily" /></div>
+      <div class="field"><label>Weekly off / holidays <span class="tag tag-opt">Optional</span></label><input placeholder="e.g. none / Mondays" /></div>
+    </div>
+  </section>
+
+  <!-- 2. BRANDING -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">02</span><h2>Branding &amp; receipt look</h2><span class="rule"></span></div>
+    <p class="lede">How your store looks to customers — on screen, on the bill, and in the web link. No logo yet? We can start with just the store name and add it later.</p>
+    <div class="profile">
+      <div class="field"><label>Logo file <span class="tag tag-opt">Optional</span></label><input placeholder="attach PNG/JPG — square works best" /></div>
+      <div class="field"><label>Brand colour <span class="tag tag-opt">Optional</span></label><input placeholder="main colour, or a sample (default: green)" /></div>
+      <div class="field"><label>Name printed on receipts <span class="tag tag-req">Required</span></label><input placeholder="usually the store display name" /></div>
+      <div class="field"><label>Receipt footer line <span class="tag tag-opt">Optional</span></label><input placeholder="e.g. Thank you, visit again!" /></div>
+      <div class="field"><label>Preferred web address <span class="tag tag-opt">Optional</span></label><input placeholder="e.g. yourstore" /></div>
+    </div>
+  </section>
+
+  <!-- 3. MENU -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">03</span><h2>Your menu (products &amp; prices)</h2><span class="rule"></span></div>
+    <p class="lede">The most important part. Fill the table below, or send an Excel / photo of your menu and we will type it in.
+      Two columns matter most: <b>Category</b> (the group an item sits under) and <b>Made in kitchen?</b>
+      — <b>Yes</b> if it is freshly prepared and should show on the kitchen screen, <b>No</b> if it is handed over instantly.</p>
+    <table class="tbl">
+      <thead><tr><th>Category</th><th>Item name</th><th>Price (₹)</th><th>Made in kitchen?</th><th>Veg / Non-veg</th><th>Photo?</th></tr></thead>
+      <tbody>
+        <tr><td class="hint">Juices</td><td class="hint">Orange Juice</td><td class="hint">90</td><td class="hint">Yes</td><td class="hint">Veg</td><td class="hint">optional</td></tr>
+        <tr><td class="hint">Smoothies</td><td class="hint">Mango Smoothie</td><td class="hint">140</td><td class="hint">Yes</td><td class="hint">Veg</td><td class="hint">optional</td></tr>
+        <tr><td class="hint">Packaged</td><td class="hint">Bottled Water</td><td class="hint">20</td><td class="hint">No</td><td class="hint">Veg</td><td class="hint">optional</td></tr>
+        <tr><td class="blank"></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="blank"></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="blank"></td><td></td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <h3>Also tell us</h3>
+      <ul>
+        <li>Do you want <b>item photos</b> shown? If yes, send clear photos named to match each item.</li>
+        <li>Any items sold <b>by weight / loose</b> (e.g. fruit per kg)? List them with the per-unit price.</li>
+        <li>Any <b>combos or meal deals</b>? Describe what is included and the combo price.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4. OPTIONS -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">04</span><h2>Item options &amp; add-ons</h2><span class="rule"></span></div>
+    <p class="lede">Choices staff pick at billing. Three kinds: <b>Size</b> (pick one, changes price),
+      <b>Paid add-on</b> (pick any, adds cost), <b>Free choice</b> (pick one, no cost). A group can apply to a whole category at once.
+      No options on your items? Write <b>None</b> and we skip this.</p>
+    <table class="tbl">
+      <thead><tr><th>Option group</th><th>Type</th><th>Choices &amp; extra price</th><th>Applies to</th></tr></thead>
+      <tbody>
+        <tr><td class="hint">Size</td><td class="hint">Pick one (price)</td><td class="hint">Regular +₹0, Large +₹30</td><td class="hint">All smoothies</td></tr>
+        <tr><td class="hint">Add-ons</td><td class="hint">Pick any (price)</td><td class="hint">Extra scoop +₹25, Dry fruits +₹30</td><td class="hint">All shakes</td></tr>
+        <tr><td class="hint">Sugar</td><td class="hint">Free choice</td><td class="hint">Normal, Less, None</td><td class="hint">All juices</td></tr>
+        <tr><td class="blank"></td><td></td><td></td><td></td></tr>
+        <tr><td class="blank"></td><td></td><td></td><td></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 5. TAX -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">05</span><h2>Tax &amp; invoicing</h2><span class="rule"></span></div>
+    <p class="lede">How tax should appear on bills. Not GST-registered? We simply switch tax off and bills show the plain price.</p>
+    <div class="profile">
+      <div class="field"><label>GST-registered? <span class="tag tag-req">Required</span></label><input placeholder="Yes / No" /></div>
+      <div class="field"><label>GSTIN <span class="tag tag-if">If GST</span></label><input placeholder="15-character GSTIN" /></div>
+      <div class="field"><label>GST rate to charge <span class="tag tag-if">If GST</span></label><input placeholder="e.g. 5%" /></div>
+      <div class="field"><label>Prices inclusive or added on top? <span class="tag tag-req">Required</span></label><input placeholder="Inclusive / Added on top" /></div>
+      <div class="field"><label>FSSAI licence number <span class="tag tag-opt">Optional</span></label><input placeholder="if you want it on bills" /></div>
+      <div class="field"><label>Other line to print on bill <span class="tag tag-opt">Optional</span></label><input placeholder="terms, phone, etc." /></div>
+    </div>
+  </section>
+
+  <!-- 6. PAYMENTS -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">06</span><h2>Payments</h2><span class="rule"></span></div>
+    <p class="lede">Cash and UPI QR work out of the box. The <b>UPI ID</b> is important — it shows a "scan to pay" QR on the
+      counter screen with no extra hardware or fees.</p>
+    <div class="profile">
+      <div class="field"><label>Accept cash? <span class="tag tag-req">Required</span></label><input placeholder="Yes (on by default)" /></div>
+      <div class="field"><label>UPI ID / VPA for the QR <span class="tag tag-req">Recommended</span></label><input placeholder="e.g. yourstore@okhdfcbank" /></div>
+      <div class="field"><label>Card machine? <span class="tag tag-opt">Optional</span></label><input placeholder="bank / model you use or plan to buy" /></div>
+      <div class="field"><label>Online payment link (auto-confirm)? <span class="tag tag-opt">Optional</span></label><input placeholder="Yes / No — needs a Razorpay account" /></div>
+    </div>
+  </section>
+
+  <!-- 7. HARDWARE -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">07</span><h2>Hardware &amp; internet at the store</h2><span class="rule"></span></div>
+    <p class="lede">The app runs on any device with a web browser. Tell us what you already have so we know what to configure
+      and what you may need to buy. It keeps billing through internet drops and syncs when back — a small UPS plus a mobile
+      hotspot is the cheapest way to survive power and network cuts.</p>
+    <div class="qa">
+      <div class="qrow"><div class="q"><div class="name">Billing device (laptop / desktop / tablet)</div><div class="desc">What will you bill on?</div></div><div class="yn"><span>Have it</span><span>Need it</span></div></div>
+      <div class="qrow"><div class="q"><div class="name">Receipt printer</div><div class="desc">Thermal 58mm or 80mm?</div></div><div class="yn"><span>Have it</span><span>Need it</span></div></div>
+      <div class="qrow"><div class="q"><div class="name">Kitchen screen</div><div class="desc">To show prepared orders — a spare tablet or monitor works.</div></div><div class="yn"><span>Have it</span><span>Need it</span></div></div>
+      <div class="qrow"><div class="q"><div class="name">Self-order kiosk screen</div><div class="desc">Only if you want customer self-ordering.</div></div><div class="yn"><span>Have it</span><span>Need it</span></div></div>
+      <div class="qrow"><div class="q"><div class="name">Barcode scanner</div><div class="desc">Only if you sell packaged / barcoded goods.</div></div><div class="yn"><span>Have it</span><span>Need it</span></div></div>
+      <div class="qrow"><div class="q"><div class="name">Cash drawer</div><div class="desc"></div></div><div class="yn"><span>Have it</span><span>Need it</span></div></div>
+      <div class="qrow"><div class="q"><div class="name">Internet at the store</div><div class="desc">Broadband / mobile hotspot?</div></div><div class="yn"><span>Have it</span><span>Need it</span></div></div>
+      <div class="qrow"><div class="q"><div class="name">Power backup (UPS / inverter)</div><div class="desc">Keeps billing running during power cuts.</div></div><div class="yn"><span>Have it</span><span>Need it</span></div></div>
+    </div>
+  </section>
+
+  <!-- 8. STAFF -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">08</span><h2>Staff &amp; logins</h2><span class="rule"></span></div>
+    <p class="lede">Two roles: <b>Admin</b> (full access — menu, prices, reports, staff; usually the owner/manager) and
+      <b>Cashier</b> (billing &amp; kitchen only). You do not send passwords here — we create each login with a temporary
+      password and share it privately; everyone changes it on first sign-in.</p>
+    <table class="tbl">
+      <thead><tr><th>Full name</th><th>Role (Admin / Cashier)</th><th>Preferred username</th></tr></thead>
+      <tbody>
+        <tr><td class="blank"></td><td class="hint">Admin</td><td></td></tr>
+        <tr><td class="blank"></td><td class="hint">Cashier</td><td></td></tr>
+        <tr><td class="blank"></td><td class="hint">Cashier</td><td></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 9. DELIVERY -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">09</span><h2>Delivery apps (Swiggy / Zomato)</h2><span class="rule"></span></div>
+    <p class="lede">If you take online delivery orders, we can make them ring an alert and appear on your kitchen screen
+      automatically — no re-typing. Live auto-import needs access to your partner account and depends on what each platform
+      grants; we will check feasibility together. Not on delivery apps? Answer <b>No</b> and we skip this.</p>
+    <div class="qa">
+      <div class="qrow"><div class="q"><div class="name">Do you sell on Swiggy?</div></div><div class="yn"><span>Yes</span><span>No</span></div></div>
+      <div class="qrow"><div class="q"><div class="name">Do you sell on Zomato?</div></div><div class="yn"><span>Yes</span><span>No</span></div></div>
+      <div class="qrow"><div class="q"><div class="name">Want their orders to auto-appear in the POS + kitchen?</div></div><div class="yn"><span>Yes</span><span>No</span></div></div>
+    </div>
+  </section>
+
+  <!-- 10. WHATSAPP & LOYALTY -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">10</span><h2>WhatsApp bills &amp; customer loyalty</h2><span class="rule"></span></div>
+    <p class="lede">Two optional features customers love. WhatsApp bill sending needs a WhatsApp Business number with API access
+      (we help set this up). Loyalty needs no extra setup — say yes and the till starts recording repeat customers and points.</p>
+    <div class="profile">
+      <div class="field"><label>Send bills on WhatsApp? <span class="tag tag-opt">Optional</span></label><input placeholder="Yes / No — plus your WhatsApp Business number" /></div>
+      <div class="field"><label>Loyalty points by phone number? <span class="tag tag-opt">Optional</span></label><input placeholder="Yes / No" /></div>
+    </div>
+  </section>
+
+  <!-- 11. REPORTS -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">11</span><h2>Reports &amp; end-of-day</h2><span class="rule"></span></div>
+    <p class="lede">At day close, the app downloads the day's sales, bills, and a summary to the billing device — your own
+      permanent copy. Totals stay in the app; detailed bills are kept lean in the cloud to keep running costs low.</p>
+    <div class="profile">
+      <div class="field"><label>Who closes the day &amp; downloads the report?</label><input placeholder="owner / manager name" /></div>
+      <div class="field"><label>Where should the daily file be saved?</label><input placeholder="e.g. a Sales folder / Google Drive" /></div>
+      <div class="field wide"><label>Email for a daily or monthly summary <span class="tag tag-opt">Optional</span></label><input placeholder="name@email.com" /></div>
+    </div>
+  </section>
+
+  <!-- 12. BRANCHES -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">12</span><h2>Multiple branches (if any)</h2><span class="rule"></span></div>
+    <p class="lede">Most stores start with one location; the system is built to grow. Starting with a single store? Write
+      <b>1</b> and we set it up ready to add branches later, with combined reports.</p>
+    <div class="profile">
+      <div class="field"><label>How many locations today?</label><input placeholder="e.g. 1" /></div>
+      <div class="field"><label>Planning more branches soon?</label><input placeholder="Yes / No" /></div>
+      <div class="field wide"><label>If more than one, list each branch name + address</label><input placeholder="Branch 1 — …; Branch 2 — …" /></div>
+      <div class="field wide"><label>Should branches share the same menu &amp; loyalty?</label><input placeholder="Yes / No" /></div>
+    </div>
+  </section>
+
+  <!-- 13. GO-LIVE -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">13</span><h2>Go-live &amp; training</h2><span class="rule"></span></div>
+    <p class="lede">The last details so we can plan your launch.</p>
+    <div class="profile">
+      <div class="field"><label>Target go-live date</label><input placeholder="DD / MM / YYYY" /></div>
+      <div class="field"><label>How many staff need training?</label><input placeholder="e.g. 3" /></div>
+      <div class="field"><label>Training: in-person or video call?</label><input placeholder="your preference" /></div>
+      <div class="field"><label>Best day / time for the call</label><input placeholder="e.g. weekday mornings" /></div>
+      <div class="field wide"><label>Anything else we should know about your store?</label><textarea rows="2" placeholder="tell us here"></textarea></div>
+    </div>
+  </section>
+
+  <!-- CHECKLIST -->
+  <section class="grp">
+    <div class="grp-head"><span class="no">✓</span><h2>Quick checklist — what to send back</h2><span class="rule"></span></div>
+    <div class="callout">
+      <ul>
+        <li>Store name, address, and contact details (Section 01)</li>
+        <li>Logo file, if you have one (Section 02)</li>
+        <li><b>Full menu with categories and prices (Section 03) — the most important item</b></li>
+        <li>Any sizes, add-ons, or choices (Section 04)</li>
+        <li>GST status and rate (Section 05)</li>
+        <li>Your UPI ID for the payment QR (Section 06)</li>
+        <li>What hardware and internet you have (Section 07)</li>
+        <li>Names and roles of staff who need logins (Section 08)</li>
+        <li>Delivery apps, WhatsApp, and loyalty preferences (Sections 09–10)</li>
+        <li>Target go-live date (Section 13)</li>
+      </ul>
+    </div>
+    <div class="callout brand">
+      <h3>Send everything to</h3>
+      <p style="margin:2px 0 0; font-size:15px;"><b>Ayyan Industrial Solutions</b> — <span class="hint">[ add email / WhatsApp number ]</span></p>
+      <p style="margin:8px 0 0; font-size:13.5px; color:var(--muted);">Once this is back with us, your setup begins. We will confirm your go-live date within one working day.</p>
+    </div>
+  </section>
+
+  <p class="foot">Store onboarding form · Prepared by <b>Ayyan Industrial Solutions</b> — Kiosk &amp; POS software.
+    Fields marked <span class="tag tag-req">Required</span> are needed to go live; the rest can be switched on later.</p>
+</div>
+
+<script>
+  function toggleTheme() {
+    var r = document.documentElement;
+    var cur = r.getAttribute("data-theme");
+    var next = cur === "dark" ? "light" : cur === "light" ? "dark"
+      : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "dark");
+    r.setAttribute("data-theme", next);
+  }
+</script>

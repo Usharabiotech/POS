@@ -194,6 +194,23 @@ export async function paymentRoutes(app: FastifyInstance) {
     }
 
     try {
+      // Bind the confirmed cart to the money actually collected: recompute the cart and
+      // check it equals the Razorpay order's amount (and that it was fully paid). The
+      // signature only covers orderId|paymentId, not the amount, so without this a client
+      // could pay for a ₹50 cart and confirm a ₹500 one.
+      if (!useMock) {
+        const q = await quoteOrder(b.items, b.discount);
+        const auth = Buffer.from(`${env.razorpayKeyId}:${env.razorpayKeySecret}`).toString("base64");
+        const ores = await fetch(`https://api.razorpay.com/v1/orders/${b.razorpayOrderId}`, {
+          headers: { Authorization: `Basic ${auth}` },
+        });
+        if (!ores.ok) return reply.code(502).send({ error: "Could not verify payment amount" });
+        const rzp = (await ores.json()) as { amount: number; amount_paid: number };
+        if (rzp.amount !== q.amountPaise || (rzp.amount_paid ?? 0) < q.amountPaise) {
+          return reply.code(400).send({ error: "Payment amount mismatch" });
+        }
+      }
+
       const { order } = await createOrder({
         source: b.source,
         items: b.items,

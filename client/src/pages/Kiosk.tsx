@@ -10,8 +10,21 @@ import {
 import clsx from "clsx";
 import { api, type Category, type Product } from "../api";
 import { ProductConfig, type ConfiguredItem } from "../components/ProductConfig";
+import { BrandLogo, LotusMark } from "../components/BrandLogo";
 
 const money = (n: number) => "₹" + n.toFixed(2);
+
+// Kiosk screen orientation — persisted per device; defaults to vertical (portrait),
+// the mounting most self-order kiosks use.
+export type Orientation = "vertical" | "horizontal";
+const ORIENTATION_KEY = "kiosk.orientation";
+function loadOrientation(): Orientation {
+  try {
+    return localStorage.getItem(ORIENTATION_KEY) === "horizontal" ? "horizontal" : "vertical";
+  } catch {
+    return "vertical";
+  }
+}
 
 interface Line {
   key: string;
@@ -51,6 +64,17 @@ export default function Kiosk() {
   // Manager lock
   const [lockOpen, setLockOpen] = useState(false);
   const [isFs, setIsFs] = useState(false);
+  const [orientation, setOrientation] = useState<Orientation>(loadOrientation);
+  const vertical = orientation === "vertical";
+
+  function changeOrientation(o: Orientation) {
+    setOrientation(o);
+    try {
+      localStorage.setItem(ORIENTATION_KEY, o);
+    } catch {
+      /* ignore */
+    }
+  }
 
   const { data: config } = useQuery({
     queryKey: ["config"],
@@ -175,7 +199,7 @@ export default function Kiosk() {
 
   function sendWhatsApp() {
     if (!upi) return;
-    const msg = `Pay ${money(upi.amount)} for your ${config?.storeName ?? "cafe"} order #${token}: ${upi.url}`;
+    const msg = `Pay ${money(upi.amount)} for your ${config?.storeName ?? "Fruitified"} order #${token}: ${upi.url}`;
     window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`, "_blank");
   }
 
@@ -319,12 +343,14 @@ export default function Kiosk() {
   } else {
     content = (
       <div className="flex h-full flex-col bg-slate-50">
-        <header className="flex items-center justify-between bg-brand-600 px-6 py-4 text-white">
+        <header className={clsx("flex items-center justify-between bg-brand-600 px-6 text-white", vertical ? "py-6" : "py-4")}>
           <div className="flex items-center gap-3">
-            <span className="text-3xl">🍓</span>
+            <span className="flex items-center justify-center rounded-full bg-white shadow-sm" style={{ height: vertical ? 60 : 48, width: vertical ? 60 : 48 }}>
+              <LotusMark size={vertical ? 42 : 34} />
+            </span>
             <div>
-              <h1 className="text-2xl font-extrabold leading-none">{config?.storeName ?? "Order Here"}</h1>
-              <p className="text-sm text-white/80">Tap items to build your order</p>
+              <h1 className={clsx("font-extrabold leading-none", vertical ? "text-3xl" : "text-2xl")}>{config?.storeName ?? "Fruitified"}</h1>
+              <p className="mt-1 text-sm text-white/80">Tap items to build your order</p>
             </div>
           </div>
         </header>
@@ -335,7 +361,7 @@ export default function Kiosk() {
           ))}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-6 pb-28">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+          <div className={clsx("grid gap-4", vertical ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-3 md:grid-cols-4 xl:grid-cols-5")}>
             {visible.map((p) => {
               const out = p.stock !== null && p.stock <= 0;
               const inCart = cart.filter((l) => l.product.id === p.id).reduce((s, l) => s + l.qty, 0);
@@ -345,7 +371,7 @@ export default function Kiosk() {
                   disabled={out}
                   onClick={() => add(p)}
                   style={{ backgroundColor: p.color }}
-                  className={clsx("relative flex h-44 flex-col items-center justify-center gap-2 rounded-3xl p-4 text-center shadow-sm ring-1 ring-black/5 transition active:scale-95", out && "opacity-40")}
+                  className={clsx("relative flex flex-col items-center justify-center gap-2 rounded-3xl p-4 text-center shadow-sm ring-1 ring-black/5 transition active:scale-95", vertical ? "h-52" : "h-44", out && "opacity-40")}
                 >
                   {inCart > 0 && (
                     <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">{inCart}</span>
@@ -389,6 +415,8 @@ export default function Kiosk() {
         <ManagerLock
           pin={config?.kioskPin ?? "1010"}
           isFs={isFs}
+          orientation={orientation}
+          onOrientation={changeOrientation}
           onClose={() => setLockOpen(false)}
           onToggleFs={() => (isFs ? exitFullscreen() : enterFullscreen())}
           onExit={() => { exitFullscreen(); nav("/"); }}
@@ -448,8 +476,9 @@ function TenderBtn({ icon, label, hint, onClick, disabled, accent }: {
   );
 }
 
-function ManagerLock({ pin, isFs, onClose, onToggleFs, onExit }: {
-  pin: string; isFs: boolean; onClose: () => void; onToggleFs: () => void; onExit: () => void;
+function ManagerLock({ pin, isFs, orientation, onOrientation, onClose, onToggleFs, onExit }: {
+  pin: string; isFs: boolean; orientation: Orientation; onOrientation: (o: Orientation) => void;
+  onClose: () => void; onToggleFs: () => void; onExit: () => void;
 }) {
   const [entry, setEntry] = useState("");
   const [authed, setAuthed] = useState(false);
@@ -493,6 +522,21 @@ function ManagerLock({ pin, isFs, onClose, onToggleFs, onExit }: {
           <>
             <h3 className="mb-1 text-lg font-bold">Manager menu</h3>
             <p className="mb-4 text-sm text-slate-500">Kiosk controls</p>
+            <div className="mb-2 text-left text-xs font-bold uppercase tracking-wide text-slate-400">Screen orientation</div>
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => onOrientation("vertical")}
+                className={clsx("flex flex-col items-center gap-1.5 rounded-xl py-3 text-sm font-bold ring-1 transition", orientation === "vertical" ? "bg-brand-600 text-white ring-brand-600" : "bg-white text-slate-600 ring-slate-200")}
+              >
+                <span className="block h-7 w-5 rounded-sm border-2 border-current" /> Vertical
+              </button>
+              <button
+                onClick={() => onOrientation("horizontal")}
+                className={clsx("flex flex-col items-center gap-1.5 rounded-xl py-3 text-sm font-bold ring-1 transition", orientation === "horizontal" ? "bg-brand-600 text-white ring-brand-600" : "bg-white text-slate-600 ring-slate-200")}
+              >
+                <span className="block h-5 w-7 rounded-sm border-2 border-current" /> Horizontal
+              </button>
+            </div>
             <div className="grid gap-2">
               <button onClick={onToggleFs} className="btn-ghost justify-start py-3">
                 {isFs ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
