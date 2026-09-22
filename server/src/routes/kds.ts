@@ -57,6 +57,21 @@ export async function kdsRoutes(app: FastifyInstance) {
     return { tickets: [...ticketMap.values()] };
   });
 
+  // Mark one order served/packed & done — a normal counter action (no PIN), so the
+  // cashier can close a kiosk order straight from the POS notification without walking
+  // to the Kitchen Display. Marks every line COMPLETED.
+  app.post("/kds/done/:id", { preHandler: requireAuth }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) return reply.code(404).send({ error: "Order not found" });
+    await prisma.orderItem.updateMany({
+      where: { orderId: id, kdsStatus: { not: "COMPLETED" } },
+      data: { kdsStatus: "COMPLETED" },
+    });
+    await prisma.order.update({ where: { id }, data: { status: "COMPLETED" } });
+    return { ok: true, number: order.number };
+  });
+
   // Clear one whole ticket at once — requires an admin password (so kitchen/cashier
   // staff can't wipe orders without authorization). Marks every line COMPLETED.
   app.post("/kds/clear/:id", { preHandler: requireAuth }, async (req, reply) => {

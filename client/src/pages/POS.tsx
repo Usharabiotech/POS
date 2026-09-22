@@ -77,6 +77,8 @@ export default function POS() {
   const [showPay, setShowPay] = useState(false);
   const [showPending, setShowPending] = useState(false);
   const [showSync, setShowSync] = useState(false);
+  const [showKitchen, setShowKitchen] = useState(false);
+  const [doneBusy, setDoneBusy] = useState<string | null>(null);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -120,6 +122,19 @@ export default function POS() {
   const kitchenCount = kitchenTickets.length;
   const nextUp = kitchenTickets[0]; // oldest = highest priority
   const nextUpMins = nextUp ? Math.max(0, Math.floor((Date.now() - new Date(nextUp.createdAt).getTime()) / 60000)) : 0;
+
+  // Close a kitchen order straight from the POS (served/packed) — no PIN, no trip to KDS.
+  async function markKitchenDone(orderId: string) {
+    setDoneBusy(orderId);
+    try {
+      await api.post(`/kds/done/${orderId}`);
+      await qc.invalidateQueries({ queryKey: ["kds-tickets"] });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Could not close the order");
+    } finally {
+      setDoneBusy(null);
+    }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["menu"],
@@ -319,31 +334,34 @@ export default function POS() {
       {/* Kitchen queue notice — always visible while orders wait, with the next-up
           (highest-priority, oldest) ticket so counter staff know what to make first. */}
       {kitchenCount > 0 && (
-        <button
-          onClick={() => nav("/kds")}
-          className="flex items-center justify-between gap-3 border-b border-rose-200 bg-rose-50 px-4 py-2 text-left text-sm font-semibold text-rose-800 hover:bg-rose-100"
-        >
-          <span className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-800">
+          <button onClick={() => setShowKitchen(true)} className="flex items-center gap-2 hover:underline">
             <span className="relative flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
             </span>
             {kitchenCount} order{kitchenCount > 1 ? "s" : ""} to prepare
-          </span>
+          </button>
           {nextUp && (
-            <span className="flex items-center gap-2 font-bold">
-              Next up: #{nextUp.number}
-              <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate">
+                Next: <b>#{nextUp.number}</b> ·{" "}
                 {nextUp.source === "KIOSK" ? "Kiosk · " : nextUp.source === "POS" ? "" : nextUp.source + " · "}
                 {nextUp.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}
               </span>
-              <span className={clsx("rounded-full px-2 py-0.5 text-xs", nextUpMins >= 5 ? "bg-rose-600 text-white" : "bg-white/70")}>
-                {nextUpMins === 0 ? "just now" : `waiting ${nextUpMins}m`}
+              <span className={clsx("shrink-0 rounded-full px-2 py-0.5 text-xs", nextUpMins >= 5 ? "bg-rose-600 text-white" : "bg-white/70")}>
+                {nextUpMins === 0 ? "just now" : `${nextUpMins}m`}
               </span>
-              <span aria-hidden>→</span>
-            </span>
+              <button
+                onClick={() => markKitchenDone(nextUp.orderId)}
+                disabled={doneBusy === nextUp.orderId}
+                className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {doneBusy === nextUp.orderId ? "…" : "✓ Done"}
+              </button>
+            </div>
           )}
-        </button>
+        </div>
       )}
 
       <div className="flex min-h-0 flex-1">
@@ -610,6 +628,74 @@ export default function POS() {
       )}
 
       {showSync && <PendingSyncModal onClose={() => setShowSync(false)} />}
+
+      {showKitchen && (
+        <KitchenQueueModal
+          tickets={kitchenTickets}
+          busyId={doneBusy}
+          onDone={markKitchenDone}
+          onOpenKds={() => { setShowKitchen(false); nav("/kds"); }}
+          onClose={() => setShowKitchen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Kitchen queue on the POS — close (serve/pack) any order without walking to the KDS.
+// Ordered oldest-first (prep priority); each row has a one-tap Done.
+function KitchenQueueModal({
+  tickets,
+  busyId,
+  onDone,
+  onOpenKds,
+  onClose,
+}: {
+  tickets: { orderId: string; number: number; source: string; createdAt: string; items: { id: string; name: string; qty: number }[] }[];
+  busyId: string | null;
+  onDone: (orderId: string) => void;
+  onOpenKds: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-lg font-bold">Kitchen queue ({tickets.length})</h3>
+          <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        {tickets.length === 0 && <p className="py-6 text-center text-sm text-slate-400">Nothing to prepare.</p>}
+        <div className="space-y-2">
+          {tickets.map((t, i) => {
+            const mins = Math.max(0, Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 60000));
+            return (
+              <div key={t.orderId} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">
+                    #{t.number}
+                    <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">{t.source}</span>
+                    <span className={clsx("ml-2 rounded px-1.5 py-0.5 text-[10px] font-bold", mins >= 5 ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-500")}>
+                      {mins === 0 ? "just now" : `${mins}m`}
+                    </span>
+                  </p>
+                  <p className="truncate text-sm text-slate-500">{t.items.map((it) => `${it.qty}× ${it.name}`).join(", ")}</p>
+                </div>
+                <button
+                  onClick={() => onDone(t.orderId)}
+                  disabled={busyId === t.orderId}
+                  className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {busyId === t.orderId ? "…" : "✓ Done"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <button onClick={onOpenKds} className="btn-ghost mt-4 w-full justify-center ring-1 ring-slate-200">
+          Open full Kitchen Display
+        </button>
+      </div>
     </div>
   );
 }
