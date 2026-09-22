@@ -12,6 +12,7 @@ import { api, type Category, type Product } from "../api";
 import { ProductConfig, type ConfiguredItem } from "../components/ProductConfig";
 import { HeaderLogo } from "../components/BrandLogo";
 import { ProductCover } from "../components/ProductCover";
+import { unlockAudio, playThankYouChime } from "../lib/sound";
 
 const money = (n: number) => "₹" + n.toFixed(2);
 
@@ -96,9 +97,17 @@ export default function Kiosk() {
   const tax = Math.round(subtotal * taxRate * 100) / 100;
   const total = Math.round((subtotal + tax) * 100) / 100;
 
+  // Play the celebratory chime once the order is placed (paid or sent to counter).
+  useEffect(() => {
+    if (step === "done" || step === "counter") playThankYouChime();
+  }, [step]);
+
   // Kiosk lockdown.
   useEffect(() => {
-    const goFs = () => enterFullscreen();
+    const goFs = () => {
+      enterFullscreen();
+      unlockAudio(); // satisfy autoplay policy so the thank-you chime can play
+    };
     window.addEventListener("pointerdown", goFs, { once: true });
     const onFsChange = () => setIsFs(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFsChange);
@@ -482,7 +491,8 @@ function ResultScreen({ emoji, title, token, subtitle, onReset }: {
       <p className="mt-2 text-xl text-brand-700/80">Your token number</p>
       <div className="my-4 rounded-3xl bg-brand-600 px-16 py-8 text-8xl font-black text-white shadow-lg">{token}</div>
       {subtitle && <p className="max-w-md text-lg text-brand-800/85">{subtitle}</p>}
-      <button onClick={onReset} className="btn-primary mt-10 rounded-2xl px-10 py-4 text-xl">
+      <p className="mt-6 text-2xl font-extrabold text-brand-700">Thank you — Enjoy Fruitified! 🍓</p>
+      <button onClick={onReset} className="btn-primary mt-8 rounded-2xl px-10 py-4 text-xl">
         Start new order
       </button>
     </div>

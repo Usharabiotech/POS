@@ -5,7 +5,7 @@ import { playNewOrderChime } from "./sound";
 export interface OnlineOrder {
   id: string;
   number: number;
-  source: "SWIGGY" | "ZOMATO";
+  source: "SWIGGY" | "ZOMATO" | "KIOSK";
   total: number;
   createdAt: string;
   items: { id: string; name: string; qty: number }[];

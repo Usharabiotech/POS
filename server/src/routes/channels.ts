@@ -85,8 +85,16 @@ export async function channelRoutes(app: FastifyInstance) {
   app.get("/channels/orders", { preHandler: requireAuth }, async (req) => {
     const { since } = req.query as { since?: string };
     const after = since ? new Date(since) : new Date(Date.now() - 60_000);
+    // Delivery orders always alert; kiosk orders alert once PAID (so the counter is
+    // notified to prepare + pack — the kiosk may be far from the till).
     const orders = await prisma.order.findMany({
-      where: { source: { in: ["SWIGGY", "ZOMATO"] }, createdAt: { gt: after } },
+      where: {
+        createdAt: { gt: after },
+        OR: [
+          { source: { in: ["SWIGGY", "ZOMATO"] } },
+          { source: "KIOSK", paid: true },
+        ],
+      },
       orderBy: { createdAt: "asc" },
       include: { items: true },
       take: 20,

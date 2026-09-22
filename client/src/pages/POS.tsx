@@ -697,6 +697,7 @@ function PendingModal({
 const PLATFORM = {
   SWIGGY: { label: "Swiggy", bg: "#fc8019", emoji: "🛵" },
   ZOMATO: { label: "Zomato", bg: "#e23744", emoji: "🍽️" },
+  KIOSK: { label: "Kiosk", bg: "#b56a51", emoji: "🧾" },
 } as const;
 
 function OnlineOrderAlert({

@@ -19,6 +19,33 @@ export function unlockAudio() {
   if (c && c.state === "suspended") c.resume().catch(() => {});
 }
 
+/** A warm ascending three-note flourish for a completed kiosk order. */
+export function playThankYouChime() {
+  const c = getCtx();
+  if (!c) return;
+  if (c.state === "suspended") c.resume().catch(() => {});
+  const now = c.currentTime;
+  // C5 – E5 – G5 – C6, a happy major arpeggio.
+  const notes = [
+    { f: 523.25, t: 0 },
+    { f: 659.25, t: 0.14 },
+    { f: 783.99, t: 0.28 },
+    { f: 1046.5, t: 0.44 },
+  ];
+  for (const n of notes) {
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = n.f;
+    gain.gain.setValueAtTime(0.0001, now + n.t);
+    gain.gain.exponentialRampToValueAtTime(0.28, now + n.t + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + n.t + 0.4);
+    osc.connect(gain).connect(c.destination);
+    osc.start(now + n.t);
+    osc.stop(now + n.t + 0.42);
+  }
+}
+
 /** A friendly two-note "ding-dong" that carries across a noisy café. */
 export function playNewOrderChime() {
   const c = getCtx();
