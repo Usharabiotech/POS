@@ -106,6 +106,21 @@ export default function POS() {
   });
   const pendingCount = pending?.orders.length ?? 0;
 
+  // Live kitchen queue so the counter always sees active orders (blinking KDS icon +
+  // a priority strip). Tickets come oldest-first — that IS the prep priority.
+  const { data: kds } = useQuery({
+    queryKey: ["kds-tickets"],
+    queryFn: async () =>
+      (await api.get("/kds/tickets")).data as {
+        tickets: { orderId: string; number: number; source: string; createdAt: string; items: { id: string; name: string; qty: number }[] }[];
+      },
+    refetchInterval: 4000,
+  });
+  const kitchenTickets = kds?.tickets ?? [];
+  const kitchenCount = kitchenTickets.length;
+  const nextUp = kitchenTickets[0]; // oldest = highest priority
+  const nextUpMins = nextUp ? Math.max(0, Math.floor((Date.now() - new Date(nextUp.createdAt).getTime()) / 60000)) : 0;
+
   const { data, isLoading } = useQuery({
     queryKey: ["menu"],
     queryFn: async () => (await api.get("/menu")).data as { categories: Category[] },
@@ -262,8 +277,17 @@ export default function POS() {
               </span>
             )}
           </button>
-          <Link to="/kds" className="btn-ghost" title="Kitchen Display">
-            <Monitor className="h-5 w-5" />
+          <Link
+            to="/kds"
+            className={clsx("btn-ghost relative", kitchenCount > 0 && "animate-pulse ring-2 ring-rose-400")}
+            title={kitchenCount > 0 ? `${kitchenCount} order(s) in the kitchen` : "Kitchen Display"}
+          >
+            <Monitor className={clsx("h-5 w-5", kitchenCount > 0 && "text-rose-600")} />
+            {kitchenCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-xs font-bold text-white">
+                {kitchenCount}
+              </span>
+            )}
           </Link>
           <Link to="/reports" className="btn-ghost" title="Reports">
             <BarChart3 className="h-5 w-5" />
@@ -291,6 +315,36 @@ export default function POS() {
           </button>
         </div>
       </header>
+
+      {/* Kitchen queue notice — always visible while orders wait, with the next-up
+          (highest-priority, oldest) ticket so counter staff know what to make first. */}
+      {kitchenCount > 0 && (
+        <button
+          onClick={() => nav("/kds")}
+          className="flex items-center justify-between gap-3 border-b border-rose-200 bg-rose-50 px-4 py-2 text-left text-sm font-semibold text-rose-800 hover:bg-rose-100"
+        >
+          <span className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
+            </span>
+            {kitchenCount} order{kitchenCount > 1 ? "s" : ""} to prepare
+          </span>
+          {nextUp && (
+            <span className="flex items-center gap-2 font-bold">
+              Next up: #{nextUp.number}
+              <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs">
+                {nextUp.source === "KIOSK" ? "Kiosk · " : nextUp.source === "POS" ? "" : nextUp.source + " · "}
+                {nextUp.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}
+              </span>
+              <span className={clsx("rounded-full px-2 py-0.5 text-xs", nextUpMins >= 5 ? "bg-rose-600 text-white" : "bg-white/70")}>
+                {nextUpMins === 0 ? "just now" : `waiting ${nextUpMins}m`}
+              </span>
+              <span aria-hidden>→</span>
+            </span>
+          )}
+        </button>
+      )}
 
       <div className="flex min-h-0 flex-1">
         {/* Products */}
