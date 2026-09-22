@@ -4,18 +4,18 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Fruitified brand — burnt orange from the wordmark.
+        // Fruitified brand — soft terracotta from the wordmark, toned down to pastel.
         brand: {
-          50: "#fdf4ee",
-          100: "#f9e3d3",
-          200: "#f1c4a6",
-          300: "#e6a074",
-          400: "#d97e48",
-          500: "#c85f2f",
-          600: "#b44f26",
-          700: "#933f20",
-          800: "#76341d",
-          900: "#602d1c",
+          50: "#fdf6f1",
+          100: "#f8e7dc",
+          200: "#f0d2c2",
+          300: "#e5b7a3",
+          400: "#d79a83",
+          500: "#c67f66",
+          600: "#b56a51", // CTAs — white text still reads
+          700: "#95533f",
+          800: "#763f30",
+          900: "#5f3327",
         },
         // Earthy accents pulled from the logo's fruit palette.
         forest: { light: "#9caa8e", DEFAULT: "#586b4d", dark: "#3f4d38" },

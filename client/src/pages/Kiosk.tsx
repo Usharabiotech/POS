@@ -232,7 +232,7 @@ export default function Kiosk() {
     );
   } else if (step === "upi") {
     content = (
-      <div className="flex min-h-full flex-col items-center justify-center bg-slate-50 p-6 text-center">
+      <div className="flex min-h-full flex-col items-center justify-center bg-cream p-6 text-center">
         <h1 className="text-3xl font-extrabold">Scan &amp; Pay {money(upi?.amount ?? total)}</h1>
         <p className="mt-1 text-slate-500">Token #{token} · pay with any UPI app</p>
         <div className="my-5 rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
@@ -343,18 +343,18 @@ export default function Kiosk() {
     );
   } else {
     content = (
-      <div className="flex h-full flex-col bg-slate-50">
-        <header className={clsx("flex items-center justify-between bg-brand-600 px-6 text-white", vertical ? "py-6" : "py-4")}>
+      <div className="flex h-full flex-col bg-cream">
+        <header className={clsx("flex items-center justify-between border-b border-brand-200 bg-brand-100 px-6 text-brand-900", vertical ? "py-6" : "py-4")}>
           <div className="flex items-center gap-3">
             <HeaderLogo size={vertical ? 60 : 48} />
             <div>
               <h1 className={clsx("font-extrabold leading-none", vertical ? "text-3xl" : "text-2xl")}>{config?.storeName ?? "Fruitified"}</h1>
-              <p className="mt-1 text-sm text-white/80">Tap items to build your order</p>
+              <p className="mt-1 text-sm text-brand-700/80">Tap items to build your order</p>
             </div>
           </div>
           <button
             onClick={() => setLockOpen(true)}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/70 text-brand-800 transition hover:bg-white"
             title="Manager menu"
             aria-label="Manager menu"
           >
@@ -476,13 +476,13 @@ function ResultScreen({ emoji, title, token, subtitle, onReset }: {
   emoji: string; title: string; token: number | null; subtitle: string; onReset: () => void;
 }) {
   return (
-    <div className="flex min-h-full flex-col items-center justify-center bg-brand-600 p-8 text-center text-white">
+    <div className="flex min-h-full flex-col items-center justify-center bg-brand-100 p-8 text-center text-brand-900">
       <div className="text-8xl">{emoji}</div>
       <h1 className="mt-6 text-4xl font-extrabold">{title}</h1>
-      <p className="mt-2 text-xl text-white/80">Your token number</p>
-      <div className="my-4 rounded-3xl bg-white px-16 py-8 text-8xl font-black text-brand-700">{token}</div>
-      {subtitle && <p className="max-w-md text-lg text-white/85">{subtitle}</p>}
-      <button onClick={onReset} className="mt-10 rounded-2xl bg-white px-10 py-4 text-xl font-bold text-brand-700">
+      <p className="mt-2 text-xl text-brand-700/80">Your token number</p>
+      <div className="my-4 rounded-3xl bg-brand-600 px-16 py-8 text-8xl font-black text-white shadow-lg">{token}</div>
+      {subtitle && <p className="max-w-md text-lg text-brand-800/85">{subtitle}</p>}
+      <button onClick={onReset} className="btn-primary mt-10 rounded-2xl px-10 py-4 text-xl">
         Start new order
       </button>
     </div>
@@ -595,7 +595,7 @@ function CatItem({ active, onClick, emoji, label, big }: {
       className={clsx(
         "mb-1.5 flex w-full items-center gap-2.5 rounded-2xl text-left font-bold leading-tight transition active:scale-[.98]",
         big ? "px-3 py-4 text-lg" : "px-3 py-3 text-base",
-        active ? "bg-brand-600 text-white shadow" : "text-slate-700 hover:bg-slate-100"
+        active ? "bg-brand-200 text-brand-900 ring-1 ring-brand-300" : "text-slate-600 hover:bg-brand-50"
       )}
     >
       <span className={clsx("shrink-0", big ? "text-2xl" : "text-xl")}>{emoji}</span>

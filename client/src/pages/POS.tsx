@@ -301,7 +301,7 @@ export default function POS() {
               onClick={() => setActiveCat("all")}
               className={clsx(
                 "whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold",
-                activeCat === "all" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600"
+                activeCat === "all" ? "bg-brand-200 text-brand-900" : "bg-slate-100 text-slate-600"
               )}
             >
               All
@@ -315,7 +315,7 @@ export default function POS() {
                 }}
                 className={clsx(
                   "whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold",
-                  activeCat === c.id ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600"
+                  activeCat === c.id ? "bg-brand-200 text-brand-900" : "bg-slate-100 text-slate-600"
                 )}
               >
                 {c.emoji} {c.name}
