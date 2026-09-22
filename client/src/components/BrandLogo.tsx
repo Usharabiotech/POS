@@ -22,7 +22,7 @@ export function BrandLogo({
   if (imgOk) {
     return (
       <img
-        src="/brand-logo.png"
+        src="/brand-logo.jpg"
         alt="Fruitified"
         onError={() => setImgOk(false)}
         style={{ height: markSize * (showWordmark ? 1.5 : 1) }}

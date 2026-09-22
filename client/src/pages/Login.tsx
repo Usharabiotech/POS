@@ -32,7 +32,7 @@ export default function Login() {
     <div className="flex min-h-full items-center justify-center p-4">
       <form onSubmit={submit} className="card w-full max-w-sm p-8">
         <div className="mb-6 flex flex-col items-center text-center">
-          <BrandLogo markSize={56} />
+          <BrandLogo markSize={100} />
           <p className="mt-3 text-sm text-slate-500">Sign in to start selling</p>
         </div>
         <label className="mb-1 block text-sm font-medium text-slate-600">Username</label>
