@@ -352,38 +352,48 @@ export default function Kiosk() {
             </div>
           </div>
         </header>
-        <div className="flex gap-3 overflow-x-auto bg-white px-6 py-3 shadow-sm">
-          <CatBtn active={cat === "all"} onClick={() => setCat("all")}>All</CatBtn>
-          {categories.map((c) => (
-            <CatBtn key={c.id} active={cat === c.id} onClick={() => setCat(c.id)}>{c.emoji} {c.name}</CatBtn>
-          ))}
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-6 pb-28">
-          <div className={clsx("grid gap-4", vertical ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-3 md:grid-cols-4 xl:grid-cols-5")}>
-            {visible.map((p) => {
-              const out = p.stock !== null && p.stock <= 0;
-              const inCart = cart.filter((l) => l.product.id === p.id).reduce((s, l) => s + l.qty, 0);
-              return (
-                <button
-                  key={p.id}
-                  disabled={out}
-                  onClick={() => add(p)}
-                  style={{ backgroundColor: p.color }}
-                  className={clsx("relative flex flex-col items-center justify-center gap-2 rounded-3xl p-4 text-center shadow-sm ring-1 ring-black/5 transition active:scale-95", vertical ? "h-52" : "h-44", out && "opacity-40")}
-                >
-                  {inCart > 0 && (
-                    <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">{inCart}</span>
-                  )}
-                  {p.image ? (
-                    <img src={p.image} alt="" className="h-20 w-20 rounded-xl object-cover" />
-                  ) : (
-                    <span className="text-5xl">{p.emoji}</span>
-                  )}
-                  <span className="text-base font-bold leading-tight text-slate-800">{p.name}</span>
-                  <span className="text-lg font-extrabold text-slate-900">{money(p.price)}</span>
-                </button>
-              );
-            })}
+        <div className="flex min-h-0 flex-1">
+          {/* Left: every category visible at once — no swiping */}
+          <nav className={clsx("shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-2 pb-28", vertical ? "w-44" : "w-56")}>
+            <CatItem active={cat === "all"} onClick={() => setCat("all")} emoji="🗂️" label="All" big={vertical} />
+            {categories.map((c) => (
+              <CatItem key={c.id} active={cat === c.id} onClick={() => setCat(c.id)} emoji={c.emoji} label={c.name} big={vertical} />
+            ))}
+          </nav>
+          {/* Right: items in the selected category */}
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-28">
+            <h2 className={clsx("mb-3 font-extrabold text-slate-800", vertical ? "text-2xl" : "text-xl")}>
+              {cat === "all" ? "All items" : categories.find((c) => c.id === cat)?.name ?? "Items"}
+            </h2>
+            <div className={clsx("grid gap-4", vertical ? "grid-cols-2 xl:grid-cols-3" : "grid-cols-3 xl:grid-cols-4")}>
+              {visible.map((p) => {
+                const out = p.stock !== null && p.stock <= 0;
+                const inCart = cart.filter((l) => l.product.id === p.id).reduce((s, l) => s + l.qty, 0);
+                return (
+                  <button
+                    key={p.id}
+                    disabled={out}
+                    onClick={() => add(p)}
+                    style={{ backgroundColor: p.color }}
+                    className={clsx("relative flex flex-col items-center justify-center gap-2 rounded-3xl p-4 text-center shadow-sm ring-1 ring-black/5 transition active:scale-95", vertical ? "h-52" : "h-44", out && "opacity-40")}
+                  >
+                    {inCart > 0 && (
+                      <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">{inCart}</span>
+                    )}
+                    {p.image ? (
+                      <img src={p.image} alt="" className="h-20 w-20 rounded-xl object-cover" />
+                    ) : (
+                      <span className="text-5xl">{p.emoji}</span>
+                    )}
+                    <span className="text-base font-bold leading-tight text-slate-800">{p.name}</span>
+                    <span className="text-lg font-extrabold text-slate-900">{money(p.price)}</span>
+                  </button>
+                );
+              })}
+              {visible.length === 0 && (
+                <p className="col-span-full py-10 text-center text-slate-400">No items in this category.</p>
+              )}
+            </div>
           </div>
         </div>
         {count > 0 && (
@@ -550,10 +560,20 @@ function ManagerLock({ pin, isFs, orientation, onOrientation, onClose, onToggleF
   );
 }
 
-function CatBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function CatItem({ active, onClick, emoji, label, big }: {
+  active: boolean; onClick: () => void; emoji: string; label: string; big?: boolean;
+}) {
   return (
-    <button onClick={onClick} className={clsx("whitespace-nowrap rounded-full px-5 py-2.5 text-base font-bold", active ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600")}>
-      {children}
+    <button
+      onClick={onClick}
+      className={clsx(
+        "mb-1.5 flex w-full items-center gap-2.5 rounded-2xl text-left font-bold leading-tight transition active:scale-[.98]",
+        big ? "px-3 py-4 text-lg" : "px-3 py-3 text-base",
+        active ? "bg-brand-600 text-white shadow" : "text-slate-700 hover:bg-slate-100"
+      )}
+    >
+      <span className={clsx("shrink-0", big ? "text-2xl" : "text-xl")}>{emoji}</span>
+      <span>{label}</span>
     </button>
   );
 }
