@@ -10,7 +10,7 @@ import {
 import clsx from "clsx";
 import { api, type Category, type Product } from "../api";
 import { ProductConfig, type ConfiguredItem } from "../components/ProductConfig";
-import { BrandLogo, LotusMark } from "../components/BrandLogo";
+import { HeaderLogo } from "../components/BrandLogo";
 
 const money = (n: number) => "₹" + n.toFixed(2);
 
@@ -345,9 +345,7 @@ export default function Kiosk() {
       <div className="flex h-full flex-col bg-slate-50">
         <header className={clsx("flex items-center justify-between bg-brand-600 px-6 text-white", vertical ? "py-6" : "py-4")}>
           <div className="flex items-center gap-3">
-            <span className="flex items-center justify-center rounded-full bg-white shadow-sm" style={{ height: vertical ? 60 : 48, width: vertical ? 60 : 48 }}>
-              <LotusMark size={vertical ? 42 : 34} />
-            </span>
+            <HeaderLogo size={vertical ? 60 : 48} />
             <div>
               <h1 className={clsx("font-extrabold leading-none", vertical ? "text-3xl" : "text-2xl")}>{config?.storeName ?? "Fruitified"}</h1>
               <p className="mt-1 text-sm text-white/80">Tap items to build your order</p>

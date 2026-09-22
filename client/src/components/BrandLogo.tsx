@@ -55,6 +55,41 @@ export function BrandLogo({
   );
 }
 
+/**
+ * Compact square logo badge for slim headers (POS / kiosk). The real logo is a tall
+ * portrait, so we crop it to the lotus emblem with object-cover (like an app icon).
+ * Falls back to the SVG lotus if the image is missing.
+ */
+export function HeaderLogo({ size = 32 }: { size?: number }) {
+  // `size` is the height; the box is landscape (≈1.5:1) so object-cover frames just the
+  // lotus emblem out of the tall portrait logo, without whitespace or wordmark showing.
+  const [imgOk, setImgOk] = useState(true);
+  const w = Math.round(size * 1.5);
+  if (!imgOk) {
+    return (
+      <span
+        className="flex items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm"
+        style={{ height: size, width: size }}
+      >
+        <LotusMark size={size * 0.82} />
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-block overflow-hidden rounded-xl bg-white shadow-sm"
+      style={{ height: size, width: w }}
+    >
+      <img
+        src="/brand-logo.jpg"
+        alt="Fruitified"
+        onError={() => setImgOk(false)}
+        style={{ height: size, width: w, objectFit: "cover", objectPosition: "center 48%" }}
+      />
+    </span>
+  );
+}
+
 /** A small lotus of fruit-coloured petals — echoes the Fruitified logo. */
 export function LotusMark({ size = 40 }: { size?: number }) {
   return (
