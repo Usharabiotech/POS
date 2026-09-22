@@ -352,6 +352,14 @@ export default function Kiosk() {
               <p className="mt-1 text-sm text-white/80">Tap items to build your order</p>
             </div>
           </div>
+          <button
+            onClick={() => setLockOpen(true)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+            title="Manager menu"
+            aria-label="Manager menu"
+          >
+            <Lock className="h-5 w-5" />
+          </button>
         </header>
         <div className="flex min-h-0 flex-1">
           {/* Left: every category visible at once — no swiping */}
@@ -426,14 +434,17 @@ export default function Kiosk() {
   return (
     <div className="relative h-full select-none">
       {content}
-      <button
-        onClick={() => setLockOpen(true)}
-        className="absolute bottom-3 left-3 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-black/20 text-white/80 backdrop-blur hover:bg-black/40"
-        title="Manager menu"
-        aria-label="Manager menu"
-      >
-        <Lock className="h-5 w-5" />
-      </button>
+      {/* Browse has the lock in its header; on the other steps keep a discreet one top-right. */}
+      {step !== "browse" && (
+        <button
+          onClick={() => setLockOpen(true)}
+          className="absolute right-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-black/25 text-white backdrop-blur hover:bg-black/45"
+          title="Manager menu"
+          aria-label="Manager menu"
+        >
+          <Lock className="h-5 w-5" />
+        </button>
+      )}
       {lockOpen && (
         <ManagerLock
           pin={config?.kioskPin ?? "1010"}
