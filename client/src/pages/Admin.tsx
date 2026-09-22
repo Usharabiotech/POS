@@ -22,6 +22,7 @@ interface AdminProduct {
   lowStockAt: number;
   cost: number | null;
   image: string | null;
+  imageFit?: "icon" | "cover";
   category: { name: string; emoji: string };
 }
 interface Cat {
@@ -190,6 +191,7 @@ function ProductModal({
   const [cost, setCost] = useState<number>(product?.cost ?? 0);
   const [emoji, setEmoji] = useState(product?.emoji ?? "🍓");
   const [image, setImage] = useState<string | null>(product?.image ?? null);
+  const [imageFit, setImageFit] = useState<"icon" | "cover">(product?.imageFit ?? "icon");
   const [imgBusy, setImgBusy] = useState(false);
 
   async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -236,6 +238,7 @@ function ProductModal({
       cost: cost ? Number(cost) : null,
       emoji,
       image,
+      imageFit,
       stock: tracksStock ? Number(stock) : null,
     };
     try {
@@ -291,6 +294,31 @@ function ProductModal({
               <span className="text-[11px] text-slate-400">Optional · auto-shrunk to save space</span>
             </div>
           </div>
+
+          {image && (
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Image display</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setImageFit("icon")}
+                  className={clsx("rounded-xl px-3 py-2 text-sm font-semibold ring-1 transition", imageFit === "icon" ? "bg-brand-600 text-white ring-brand-600" : "bg-white text-slate-600 ring-slate-200")}
+                >
+                  Small icon
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageFit("cover")}
+                  className={clsx("rounded-xl px-3 py-2 text-sm font-semibold ring-1 transition", imageFit === "cover" ? "bg-brand-600 text-white ring-brand-600" : "bg-white text-slate-600 ring-slate-200")}
+                >
+                  Full tile (glossy)
+                </button>
+              </div>
+              <span className="mt-1 block text-[11px] text-slate-400">
+                Full tile fills the whole card with the photo and overlays the name &amp; price.
+              </span>
+            </div>
+          )}
 
           <select
             value={categoryId}

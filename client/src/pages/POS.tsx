@@ -30,6 +30,7 @@ import { useOnlineOrders, type OnlineOrder } from "../lib/useOnlineOrders";
 import { payWithRazorpay, PaymentCancelled } from "../lib/razorpay";
 import { ProductConfig, type ConfiguredItem } from "../components/ProductConfig";
 import { HeaderLogo } from "../components/BrandLogo";
+import { ProductCover } from "../components/ProductCover";
 
 interface CartLine {
   /** Unique per product + option selection, so differently-configured lines don't merge. */
@@ -330,37 +331,57 @@ export default function POS() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {visible.map((p) => {
                   const out = p.stock !== null && p.stock <= 0;
+                  const cover = p.imageFit === "cover" && !!p.image;
                   return (
                     <button
                       key={p.id}
                       disabled={out}
                       onClick={() => addToCart(p)}
-                      style={{ backgroundColor: p.color }}
+                      style={cover
+                        ? { backgroundImage: `url(${p.image})`, backgroundSize: "cover", backgroundPosition: "center" }
+                        : { backgroundColor: p.color }}
                       className={clsx(
-                        "relative flex h-32 flex-col items-start justify-between rounded-2xl p-3 text-left shadow-sm ring-1 ring-black/5 transition active:scale-95",
+                        "relative h-32 overflow-hidden rounded-2xl text-left shadow-sm ring-1 ring-black/5 transition active:scale-95",
+                        !cover && "flex flex-col items-start justify-between p-3",
                         out && "opacity-40"
                       )}
                     >
-                      {p.image ? (
-                        <img src={p.image} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                      {cover ? (
+                        <>
+                          <ProductCover name={p.name} price={p.price} />
+                          {p.kind === "PREPARED" && (
+                            <span className="absolute left-2 top-2 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">MADE</span>
+                          )}
+                          {p.stock !== null && (
+                            <span className="absolute right-2 top-2 rounded-full bg-black/55 px-1.5 text-[10px] font-semibold text-white">
+                              {out ? "Out" : p.stock}
+                            </span>
+                          )}
+                        </>
                       ) : (
-                        <span className="text-3xl">{p.emoji}</span>
-                      )}
-                      <span className="line-clamp-2 text-sm font-semibold leading-tight text-slate-800">
-                        {p.name}
-                      </span>
-                      <span className="flex w-full items-center justify-between">
-                        <span className="font-bold text-slate-900">{money(p.price)}</span>
-                        {p.kind === "PREPARED" && (
-                          <span className="rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                            MADE
+                        <>
+                          {p.image ? (
+                            <img src={p.image} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                          ) : (
+                            <span className="text-3xl">{p.emoji}</span>
+                          )}
+                          <span className="line-clamp-2 text-sm font-semibold leading-tight text-slate-800">
+                            {p.name}
                           </span>
-                        )}
-                      </span>
-                      {p.stock !== null && (
-                        <span className="absolute right-2 top-2 rounded-full bg-white/70 px-1.5 text-[10px] font-semibold text-slate-600">
-                          {out ? "Out" : p.stock}
-                        </span>
+                          <span className="flex w-full items-center justify-between">
+                            <span className="font-bold text-slate-900">{money(p.price)}</span>
+                            {p.kind === "PREPARED" && (
+                              <span className="rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                MADE
+                              </span>
+                            )}
+                          </span>
+                          {p.stock !== null && (
+                            <span className="absolute right-2 top-2 rounded-full bg-white/70 px-1.5 text-[10px] font-semibold text-slate-600">
+                              {out ? "Out" : p.stock}
+                            </span>
+                          )}
+                        </>
                       )}
                     </button>
                   );

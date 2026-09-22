@@ -57,6 +57,7 @@ export async function catalogRoutes(app: FastifyInstance) {
     cost: z.number().nonnegative().nullable().optional(),
     // Compressed thumbnail data URI. Hard cap (~150KB) so a product row stays small.
     image: z.string().max(220000, "Image too large — use a smaller photo").nullable().optional(),
+    imageFit: z.enum(["icon", "cover"]).optional(),
     barcode: z.string().optional().nullable(),
     stock: z.number().int().nullable().optional(),
     emoji: z.string().optional(),

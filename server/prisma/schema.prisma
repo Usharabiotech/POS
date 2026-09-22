@@ -108,6 +108,9 @@ model Product {
   /// Optional product photo as a small compressed data URI (shrunk client-side, ~20-40KB).
   /// Falls back to the emoji when empty. Kept tiny so cloud storage stays cheap.
   image      String?
+  /// How the photo shows on the tile: "icon" = small thumbnail, "cover" = fills the whole
+  /// tile as a glossy background with the name/price overlaid on top.
+  imageFit   String      @default("icon")
 
   active     Boolean     @default(true)
   sort       Int         @default(0)

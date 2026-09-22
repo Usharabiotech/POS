@@ -72,6 +72,7 @@ export interface Product {
   emoji: string;
   color: string;
   image?: string | null;
+  imageFit?: "icon" | "cover";
   categoryId: string;
   modifierGroups?: ModGroup[];
 }

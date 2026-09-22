@@ -11,6 +11,7 @@ import clsx from "clsx";
 import { api, type Category, type Product } from "../api";
 import { ProductConfig, type ConfiguredItem } from "../components/ProductConfig";
 import { HeaderLogo } from "../components/BrandLogo";
+import { ProductCover } from "../components/ProductCover";
 
 const money = (n: number) => "₹" + n.toFixed(2);
 
@@ -369,24 +370,38 @@ export default function Kiosk() {
               {visible.map((p) => {
                 const out = p.stock !== null && p.stock <= 0;
                 const inCart = cart.filter((l) => l.product.id === p.id).reduce((s, l) => s + l.qty, 0);
+                const cover = p.imageFit === "cover" && !!p.image;
                 return (
                   <button
                     key={p.id}
                     disabled={out}
                     onClick={() => add(p)}
-                    style={{ backgroundColor: p.color }}
-                    className={clsx("relative flex flex-col items-center justify-center gap-2 rounded-3xl p-4 text-center shadow-sm ring-1 ring-black/5 transition active:scale-95", vertical ? "h-52" : "h-44", out && "opacity-40")}
+                    style={cover
+                      ? { backgroundImage: `url(${p.image})`, backgroundSize: "cover", backgroundPosition: "center" }
+                      : { backgroundColor: p.color }}
+                    className={clsx(
+                      "relative overflow-hidden rounded-3xl text-center shadow-sm ring-1 ring-black/5 transition active:scale-95",
+                      !cover && "flex flex-col items-center justify-center gap-2 p-4",
+                      vertical ? "h-52" : "h-44",
+                      out && "opacity-40"
+                    )}
                   >
                     {inCart > 0 && (
-                      <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">{inCart}</span>
+                      <span className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white ring-2 ring-white">{inCart}</span>
                     )}
-                    {p.image ? (
-                      <img src={p.image} alt="" className="h-20 w-20 rounded-xl object-cover" />
+                    {cover ? (
+                      <ProductCover name={p.name} price={p.price} />
                     ) : (
-                      <span className="text-5xl">{p.emoji}</span>
+                      <>
+                        {p.image ? (
+                          <img src={p.image} alt="" className="h-20 w-20 rounded-xl object-cover" />
+                        ) : (
+                          <span className="text-5xl">{p.emoji}</span>
+                        )}
+                        <span className="text-base font-bold leading-tight text-slate-800">{p.name}</span>
+                        <span className="text-lg font-extrabold text-slate-900">{money(p.price)}</span>
+                      </>
                     )}
-                    <span className="text-base font-bold leading-tight text-slate-800">{p.name}</span>
-                    <span className="text-lg font-extrabold text-slate-900">{money(p.price)}</span>
                   </button>
                 );
               })}
