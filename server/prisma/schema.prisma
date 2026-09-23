@@ -94,6 +94,11 @@ model Product {
   categoryId String
   category   Category    @relation(fields: [categoryId], references: [id])
   kind       ProductKind @default(READYMADE)
+  /// How the item is sold: "each" = normal per-item price; "weight" = priced by a
+  /// measured amount the cashier enters (price is then the RATE per `unit`, e.g. ₹3/g).
+  sellBy     String      @default("each")
+  /// Measure label for weight-sold items (e.g. "g", "kg", "ml", "piece"). Ignored for "each".
+  unit       String      @default("g")
   price      Float
   /// Purchase/cost price — used for stock valuation and profit reporting. Optional.
   cost       Float?

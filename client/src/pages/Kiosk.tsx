@@ -15,6 +15,7 @@ import { ProductCover } from "../components/ProductCover";
 import { unlockAudio, playThankYouChime } from "../lib/sound";
 
 const money = (n: number) => "₹" + n.toFixed(2);
+const priceLabel = (p: Product) => (p.sellBy === "weight" ? `${money(p.price)}/${p.unit ?? "g"}` : money(p.price));
 
 // Kiosk screen orientation — persisted per device; defaults to vertical (portrait),
 // the mounting most self-order kiosks use.
@@ -147,6 +148,11 @@ export default function Kiosk() {
   }, [step, orderId]);
 
   function add(p: Product) {
+    if (p.sellBy === "weight") {
+      // Weighed items can't be self-served at the kiosk — the counter weighs them.
+      toast("Sold by weight — please order this at the counter 🍨");
+      return;
+    }
     if (p.modifierGroups && p.modifierGroups.length > 0) {
       setConfigProduct(p);
       return;
@@ -407,7 +413,7 @@ export default function Kiosk() {
                       <span className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white ring-2 ring-white">{inCart}</span>
                     )}
                     {cover ? (
-                      <ProductCover name={p.name} price={p.price} />
+                      <ProductCover name={p.name} price={p.price} unit={p.sellBy === "weight" ? (p.unit ?? "g") : undefined} />
                     ) : (
                       <>
                         {p.image ? (
@@ -416,7 +422,7 @@ export default function Kiosk() {
                           <span className="text-5xl">{p.emoji}</span>
                         )}
                         <span className="text-base font-bold leading-tight text-slate-800">{p.name}</span>
-                        <span className="text-lg font-extrabold text-slate-900">{money(p.price)}</span>
+                        <span className="text-lg font-extrabold text-slate-900">{priceLabel(p)}</span>
                       </>
                     )}
                   </button>

@@ -44,6 +44,8 @@ interface CartLine {
 type PayMethod = "CASH" | "UPI" | "CARD";
 
 const money = (n: number) => "₹" + n.toFixed(2);
+/** Tile price label — a rate (₹3/g) for weight-sold items, a plain price otherwise. */
+const priceLabel = (p: Product) => (p.sellBy === "weight" ? `${money(p.price)}/${p.unit ?? "g"}` : money(p.price));
 
 export default function POS() {
   const nav = useNavigate();
@@ -80,6 +82,7 @@ export default function POS() {
   const [showKitchen, setShowKitchen] = useState(false);
   const [doneBusy, setDoneBusy] = useState<string | null>(null);
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
+  const [weightProduct, setWeightProduct] = useState<Product | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const { data: config } = useQuery({
@@ -159,11 +162,30 @@ export default function POS() {
   // ── Cart ops ──────────────────────────────────────────────────────────────
   // Products with option groups open a config sheet; plain products add directly.
   function addToCart(p: Product) {
+    if (p.sellBy === "weight") {
+      setWeightProduct(p); // cashier weighs & enters the amount
+      return;
+    }
     if (p.modifierGroups && p.modifierGroups.length > 0) {
       setConfigProduct(p);
       return;
     }
     addLine(p, { optionIds: [], labels: [], unitPrice: p.price });
+  }
+  // A weighed item → its own cart line: qty = amount (e.g. grams), unitPrice = rate.
+  function addWeightLine(p: Product, amount: number) {
+    const u = p.unit ?? "g";
+    setCart((c) => [
+      ...c,
+      {
+        key: `${p.id}|w${Date.now()}`,
+        product: p,
+        qty: amount,
+        optionIds: [],
+        optionLabels: [`${amount} ${u} × ${money(p.price)}/${u}`],
+        unitPrice: p.price,
+      },
+    ]);
   }
   function addLine(p: Product, sel: ConfiguredItem) {
     const key = p.id + "|" + [...sel.optionIds].sort().join(",");
@@ -420,7 +442,7 @@ export default function POS() {
                     >
                       {cover ? (
                         <>
-                          <ProductCover name={p.name} price={p.price} />
+                          <ProductCover name={p.name} price={p.price} unit={p.sellBy === "weight" ? (p.unit ?? "g") : undefined} />
                           {p.kind === "PREPARED" && (
                             <span className="absolute left-2 top-2 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">MADE</span>
                           )}
@@ -441,7 +463,7 @@ export default function POS() {
                             {p.name}
                           </span>
                           <span className="flex w-full items-center justify-between">
-                            <span className="font-bold text-slate-900">{money(p.price)}</span>
+                            <span className="font-bold text-slate-900">{priceLabel(p)}</span>
                             {p.kind === "PREPARED" && (
                               <span className="rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
                                 MADE
@@ -481,7 +503,9 @@ export default function POS() {
                 Tap products to add them
               </p>
             ) : (
-              cart.map((l) => (
+              cart.map((l) => {
+                const byWeight = l.product.sellBy === "weight";
+                return (
                 <div key={l.key} className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-slate-50">
                   <span className="text-xl">{l.product.emoji}</span>
                   <div className="min-w-0 flex-1">
@@ -489,17 +513,23 @@ export default function POS() {
                     {l.optionLabels.length > 0 && (
                       <p className="truncate text-[11px] text-brand-600">{l.optionLabels.join(", ")}</p>
                     )}
-                    <p className="text-xs text-slate-500">{money(l.unitPrice)}</p>
+                    {!byWeight && <p className="text-xs text-slate-500">{money(l.unitPrice)}</p>}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => changeQty(l.key, -1)} className="rounded-lg bg-slate-100 p-1.5">
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <span className="w-6 text-center font-semibold">{l.qty}</span>
-                    <button onClick={() => changeQty(l.key, 1)} className="rounded-lg bg-slate-100 p-1.5">
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
+                  {byWeight ? (
+                    <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-sm font-semibold">
+                      {l.qty} {l.product.unit ?? "g"}
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => changeQty(l.key, -1)} className="rounded-lg bg-slate-100 p-1.5">
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="w-6 text-center font-semibold">{l.qty}</span>
+                      <button onClick={() => changeQty(l.key, 1)} className="rounded-lg bg-slate-100 p-1.5">
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                   <span className="w-16 text-right text-sm font-bold">
                     {money(l.unitPrice * l.qty)}
                   </span>
@@ -507,7 +537,8 @@ export default function POS() {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -627,6 +658,17 @@ export default function POS() {
         />
       )}
 
+      {weightProduct && (
+        <WeightEntryModal
+          product={weightProduct}
+          onClose={() => setWeightProduct(null)}
+          onAdd={(amount) => {
+            addWeightLine(weightProduct, amount);
+            setWeightProduct(null);
+          }}
+        />
+      )}
+
       {showSync && <PendingSyncModal onClose={() => setShowSync(false)} />}
 
       {showKitchen && (
@@ -694,6 +736,60 @@ function KitchenQueueModal({
         </div>
         <button onClick={onOpenKds} className="btn-ghost mt-4 w-full justify-center ring-1 ring-slate-200">
           Open full Kitchen Display
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Weigh-and-price entry for items sold by weight/measure (e.g. ice cream ₹3/g).
+// Cashier enters the measured amount; the line total = rate × amount.
+function WeightEntryModal({
+  product,
+  onClose,
+  onAdd,
+}: {
+  product: Product;
+  onClose: () => void;
+  onAdd: (amount: number) => void;
+}) {
+  const unit = product.unit ?? "g";
+  const [amt, setAmt] = useState("");
+  const amount = Number(amt);
+  const valid = Number.isFinite(amount) && amount > 0;
+  const total = valid ? Math.round(product.price * amount * 100) / 100 : 0;
+
+  function submit() {
+    if (valid) onAdd(amount);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold">{product.name}</h3>
+          <button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <p className="text-sm text-slate-500">Sold by weight — rate {money(product.price)} per {unit}. Enter the measured {unit}.</p>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            inputMode="decimal"
+            autoFocus
+            value={amt}
+            onChange={(e) => setAmt(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            placeholder={`Amount in ${unit}`}
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-2xl font-bold tracking-wide outline-none focus:border-brand-500"
+          />
+          <span className="text-lg font-semibold text-slate-500">{unit}</span>
+        </div>
+        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+          <span className="text-slate-500">Line total</span>
+          <span className="text-2xl font-extrabold text-brand-700">{money(total)}</span>
+        </div>
+        <button className="btn-primary w-full justify-center py-3 text-lg" disabled={!valid} onClick={submit}>
+          Add · {money(total)}
         </button>
       </div>
     </div>
@@ -1046,7 +1142,7 @@ function PayModal(props: {
     setBusy(true);
     const payload = {
       source: "POS",
-      items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, optionIds: l.optionIds })),
+      items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, optionIds: l.optionIds, modifiers: l.optionLabels })),
       discount,
       payment: { method, tendered: method === "CASH" ? tendered : undefined },
       customerPhone: phone || undefined,
@@ -1095,7 +1191,7 @@ function PayModal(props: {
     try {
       const order = await payWithRazorpay({
         source: "POS",
-        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, optionIds: l.optionIds })),
+        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, optionIds: l.optionIds, modifiers: l.optionLabels })),
         discount,
         customerPhone: phone || undefined,
         customerName: custName || undefined,
@@ -1117,7 +1213,7 @@ function PayModal(props: {
     setBusy(true);
     try {
       const draft = {
-        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, optionIds: l.optionIds })),
+        items: cart.map((l) => ({ productId: l.product.id, qty: l.qty, optionIds: l.optionIds, modifiers: l.optionLabels })),
         discount,
         customerPhone: phone || undefined,
         customerName: custName || undefined,

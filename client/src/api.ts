@@ -66,6 +66,8 @@ export interface Product {
   id: string;
   name: string;
   kind: "READYMADE" | "PREPARED";
+  sellBy?: "each" | "weight";
+  unit?: string;
   price: number;
   stock: number | null;
   lowStockAt: number;

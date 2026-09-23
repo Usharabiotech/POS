@@ -53,6 +53,8 @@ export async function catalogRoutes(app: FastifyInstance) {
     name: z.string().min(1),
     categoryId: z.string().min(1),
     kind: z.enum(["READYMADE", "PREPARED"]),
+    sellBy: z.enum(["each", "weight"]).optional(),
+    unit: z.string().max(12).optional(),
     price: z.number().nonnegative(),
     cost: z.number().nonnegative().nullable().optional(),
     // Compressed thumbnail data URI. Hard cap (~150KB) so a product row stays small.

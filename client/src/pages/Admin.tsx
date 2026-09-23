@@ -14,6 +14,8 @@ interface AdminProduct {
   name: string;
   categoryId: string;
   kind: "READYMADE" | "PREPARED";
+  sellBy?: "each" | "weight";
+  unit?: string;
   price: number;
   stock: number | null;
   emoji: string;
@@ -187,6 +189,8 @@ function ProductModal({
   const [name, setName] = useState(product?.name ?? "");
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? cats[0]?.id ?? "");
   const [kind, setKind] = useState<"READYMADE" | "PREPARED">(product?.kind ?? "READYMADE");
+  const [sellBy, setSellBy] = useState<"each" | "weight">(product?.sellBy ?? "each");
+  const [unit, setUnit] = useState(product?.unit ?? "g");
   const [price, setPrice] = useState(product?.price ?? 0);
   const [cost, setCost] = useState<number>(product?.cost ?? 0);
   const [emoji, setEmoji] = useState(product?.emoji ?? "🍓");
@@ -234,6 +238,8 @@ function ProductModal({
       name,
       categoryId,
       kind,
+      sellBy,
+      unit: sellBy === "weight" ? (unit.trim() || "g") : "g",
       price: Number(price),
       cost: cost ? Number(cost) : null,
       emoji,
@@ -329,9 +335,42 @@ function ProductModal({
               <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
             ))}
           </select>
+          <div>
+            <label className="mb-1 block text-xs text-slate-500">Sold by</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setSellBy("each")}
+                className={clsx("rounded-xl px-3 py-2 text-sm font-semibold ring-1 transition", sellBy === "each" ? "bg-brand-600 text-white ring-brand-600" : "bg-white text-slate-600 ring-slate-200")}
+              >
+                Each (per item)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSellBy("weight")}
+                className={clsx("rounded-xl px-3 py-2 text-sm font-semibold ring-1 transition", sellBy === "weight" ? "bg-brand-600 text-white ring-brand-600" : "bg-white text-slate-600 ring-slate-200")}
+              >
+                By weight / measure
+              </button>
+            </div>
+            {sellBy === "weight" && (
+              <div className="mt-2 flex items-center gap-2">
+                <label className="text-xs text-slate-500">Measured in</label>
+                <input
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  placeholder="g"
+                  className="w-24 rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                />
+                <span className="text-xs text-slate-400">e.g. g, kg, ml, piece</span>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs text-slate-500">Price ₹</label>
+              <label className="mb-1 block text-xs text-slate-500">
+                {sellBy === "weight" ? `Rate ₹ per ${unit.trim() || "g"}` : "Price ₹"}
+              </label>
               <input
                 type="number"
                 value={price || ""}
@@ -363,16 +402,21 @@ function ProductModal({
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={tracksStock} onChange={(e) => setTracksStock(e.target.checked)} />
-            Track stock
+            Track stock{sellBy === "weight" ? ` (in ${unit.trim() || "g"})` : ""}
           </label>
           {tracksStock && (
             <input
               type="number"
               value={stock || ""}
               onChange={(e) => setStock(Number(e.target.value))}
-              placeholder="Current stock"
+              placeholder={sellBy === "weight" ? `Current stock in ${unit.trim() || "g"}` : "Current stock"}
               className="w-full rounded-xl border border-slate-300 px-3 py-2"
             />
+          )}
+          {sellBy === "weight" && (
+            <p className="-mt-1 text-[11px] text-slate-400">
+              For weight items, stock is counted in {unit.trim() || "g"} (leave unticked if you don't track it).
+            </p>
           )}
           {allGroups.length > 0 && (
             <div>

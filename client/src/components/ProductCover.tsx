@@ -3,7 +3,7 @@
 // whose background is set to the product image.
 const money = (n: number) => "₹" + n.toFixed(2);
 
-export function ProductCover({ name, price }: { name: string; price: number }) {
+export function ProductCover({ name, price, unit }: { name: string; price: number; unit?: string }) {
   return (
     <>
       {/* glossy sheen across the top */}
@@ -21,7 +21,7 @@ export function ProductCover({ name, price }: { name: string; price: number }) {
           className="text-lg font-extrabold text-white"
           style={{ textShadow: "0 1px 4px rgba(0,0,0,.75)" }}
         >
-          {money(price)}
+          {money(price)}{unit ? `/${unit}` : ""}
         </span>
       </span>
     </>
